@@ -22,7 +22,7 @@ export function PhotoCapture({ label, subtitle, uri, onCapture, disabled }: Prop
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (Platform.OS === 'web') {
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.85,
         allowsEditing: false,

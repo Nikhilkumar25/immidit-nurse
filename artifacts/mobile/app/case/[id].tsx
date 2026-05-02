@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Platform,
+  TextInput, Platform, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
@@ -162,6 +162,13 @@ export default function CaseScreen() {
             <View style={[styles.addressRow, { borderTopColor: colors.border }]}>
               <Ionicons name="location-outline" size={14} color={colors.mutedForeground} />
               <Text style={[styles.addressText, { color: colors.mutedForeground }]}>{c.address}</Text>
+              <TouchableOpacity 
+                style={[styles.navBtn, { backgroundColor: colors.primary + '15' }]}
+                onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}`)}
+              >
+                <Ionicons name="navigate" size={12} color={colors.primary} />
+                <Text style={[styles.navBtnText, { color: colors.primary }]}>Navigate</Text>
+              </TouchableOpacity>
             </View>
             {c.isVaccineVisit && c.vaccineDetails && (
               <View style={[styles.vaccineRow, { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}>
@@ -683,6 +690,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 12,
     lineHeight: 17,
+  },
+  navBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  navBtnText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
   },
   vaccineRow: {
     flexDirection: 'row',

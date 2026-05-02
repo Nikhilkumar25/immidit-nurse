@@ -95,6 +95,7 @@ export interface NurseCase {
   exitVitals?: Vitals;
   labDropoff?: LabDropoff;
   refusalData?: RefusalData;
+  lastUpdatedLocation?: { lat: number; lng: number; timestamp: string };
   caseOutcome?: CaseOutcome;
   nurseNotes?: string;
 }

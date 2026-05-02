@@ -196,27 +196,57 @@ export const MOCK_DOCTORS: MockDoctor[] = [
 ];
 
 export async function seedIfNeeded(): Promise<void> {
-  const seeded = await AsyncStorage.getItem(SEEDED_KEY);
-  if (seeded) return;
-  await AsyncStorage.setItem(CASES_KEY, JSON.stringify([...SEED_CASES, ...SEED_HISTORY]));
-  await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(SEED_PROFILE));
-  await AsyncStorage.setItem(SEEDED_KEY, 'true');
+  // No-op for Google Sheets (seeding happens via setupSheets in Code.gs)
 }
 
 export async function loadCases(): Promise<NurseCase[]> {
-  const raw = await AsyncStorage.getItem(CASES_KEY);
-  if (!raw) return [];
-  return JSON.parse(raw) as NurseCase[];
+  try {
+    const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
+    if (!apiUrl) {
+      console.warn('EXPO_PUBLIC_SHEETS_API_URL is missing. Falling back to local seed data.');
+      return [...SEED_CASES, ...SEED_HISTORY];
+    }
+    const res = await fetch(`${apiUrl}?action=pull`);
+    const data = await res.json();
+    const cases = (data.cases || []) as NurseCase[];
+    return cases.map(c => ({
+      ...c,
+      supplies: c.supplies || [],
+      procedurePhotos: c.procedurePhotos || [],
+      samplePhotos: c.samplePhotos || []
+    }));
+  } catch (error) {
+    console.error('Failed to load cases from Sheets API:', error);
+    return [...SEED_CASES, ...SEED_HISTORY];
+  }
 }
 
 export async function saveCases(cases: NurseCase[]): Promise<void> {
-  await AsyncStorage.setItem(CASES_KEY, JSON.stringify(cases));
+  try {
+    const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
+    if (!apiUrl) return;
+    await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'saveCases', data: cases }),
+    });
+  } catch (error) {
+    console.error('Failed to save cases to Sheets API:', error);
+  }
 }
 
 export async function loadProfile(): Promise<NurseProfile> {
-  const raw = await AsyncStorage.getItem(PROFILE_KEY);
-  if (!raw) return SEED_PROFILE;
-  return JSON.parse(raw) as NurseProfile;
+  try {
+    const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
+    if (!apiUrl) return SEED_PROFILE;
+    const res = await fetch(`${apiUrl}?action=pull`);
+    const data = await res.json();
+    // For now, return the first nurse profile or fallback
+    return (data.nurses && data.nurses.length > 0) ? data.nurses[0] : SEED_PROFILE;
+  } catch (error) {
+    console.error('Failed to load profile from Sheets API:', error);
+    return SEED_PROFILE;
+  }
 }
 
 export function formatTime(iso?: string): string {

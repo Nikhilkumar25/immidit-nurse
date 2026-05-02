@@ -3,6 +3,7 @@ import type {
   NurseCase, NurseProfile, PCRData, DoctorConsultation,
   Vitals, LabDropoff, PhaseNumber, RefusalData,
 } from '@/types/case';
+import * as Location from 'expo-location';
 import { loadCases, saveCases, loadProfile, seedIfNeeded } from '@/utils/storage';
 
 interface CaseContextValue {
@@ -45,9 +46,26 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
     init();
   }, []);
 
-  const updateCase = useCallback((id: string, updates: Partial<NurseCase>) => {
+  const updateCase = useCallback(async (id: string, updates: Partial<NurseCase>) => {
+    let locUpdate = {};
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        locUpdate = {
+          lastUpdatedLocation: {
+            lat: loc.coords.latitude,
+            lng: loc.coords.longitude,
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
+    } catch (e) {
+      console.warn('GPS tracking failed during update:', e);
+    }
+
     setCases(prev => {
-      const next = prev.map(c => c.id === id ? { ...c, ...updates } : c);
+      const next = prev.map(c => c.id === id ? { ...c, ...updates, ...locUpdate } : c);
       saveCases(next);
       return next;
     });
@@ -74,37 +92,29 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
     });
   }, [updateCase]);
 
-  const setConsentPhoto = useCallback((id: string, uri: string) => {
-    setCases(prev => {
-      const c = prev.find(x => x.id === id);
-      if (!c) return prev;
-      const hasDevice = !!c.deviceReadingPhotoUri;
-      const updates: Partial<NurseCase> = { consentFormPhotoUri: uri };
-      if (hasDevice) {
-        updates.currentPhase = 4;
-        updates.status = 'in_progress';
-      }
-      const next = prev.map(x => x.id === id ? { ...x, ...updates } : x);
-      saveCases(next);
-      return next;
-    });
-  }, []);
+  const setConsentPhoto = useCallback(async (id: string, uri: string) => {
+    const c = cases.find(x => x.id === id);
+    if (!c) return;
+    const hasDevice = !!c.deviceReadingPhotoUri;
+    const updates: Partial<NurseCase> = { consentFormPhotoUri: uri };
+    if (hasDevice) {
+      updates.currentPhase = 4;
+      updates.status = 'in_progress';
+    }
+    await updateCase(id, updates);
+  }, [cases, updateCase]);
 
-  const setDeviceReadingPhoto = useCallback((id: string, uri: string) => {
-    setCases(prev => {
-      const c = prev.find(x => x.id === id);
-      if (!c) return prev;
-      const hasConsent = !!c.consentFormPhotoUri;
-      const updates: Partial<NurseCase> = { deviceReadingPhotoUri: uri };
-      if (hasConsent) {
-        updates.currentPhase = 4;
-        updates.status = 'in_progress';
-      }
-      const next = prev.map(x => x.id === id ? { ...x, ...updates } : x);
-      saveCases(next);
-      return next;
-    });
-  }, []);
+  const setDeviceReadingPhoto = useCallback(async (id: string, uri: string) => {
+    const c = cases.find(x => x.id === id);
+    if (!c) return;
+    const hasConsent = !!c.consentFormPhotoUri;
+    const updates: Partial<NurseCase> = { deviceReadingPhotoUri: uri };
+    if (hasConsent) {
+      updates.currentPhase = 4;
+      updates.status = 'in_progress';
+    }
+    await updateCase(id, updates);
+  }, [cases, updateCase]);
 
   const savePCR = useCallback((id: string, data: PCRData) => {
     updateCase(id, { pcrCompleted: true, pcrData: data, currentPhase: 5 });
@@ -114,27 +124,17 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
     updateCase(id, { doctorConsultation: data });
   }, [updateCase]);
 
-  const addProcedurePhoto = useCallback((id: string, uri: string) => {
-    setCases(prev => {
-      const c = prev.find(x => x.id === id);
-      if (!c) return prev;
-      const photos = [...c.procedurePhotos, uri];
-      const next = prev.map(x => x.id === id ? { ...x, procedurePhotos: photos } : x);
-      saveCases(next);
-      return next;
-    });
-  }, []);
+  const addProcedurePhoto = useCallback(async (id: string, uri: string) => {
+    const c = cases.find(x => x.id === id);
+    if (!c) return;
+    await updateCase(id, { procedurePhotos: [...c.procedurePhotos, uri] });
+  }, [cases, updateCase]);
 
-  const addSamplePhoto = useCallback((id: string, uri: string) => {
-    setCases(prev => {
-      const c = prev.find(x => x.id === id);
-      if (!c) return prev;
-      const photos = [...c.samplePhotos, uri];
-      const next = prev.map(x => x.id === id ? { ...x, samplePhotos: photos } : x);
-      saveCases(next);
-      return next;
-    });
-  }, []);
+  const addSamplePhoto = useCallback(async (id: string, uri: string) => {
+    const c = cases.find(x => x.id === id);
+    if (!c) return;
+    await updateCase(id, { samplePhotos: [...c.samplePhotos, uri] });
+  }, [cases, updateCase]);
 
   const saveExitVitals = useCallback((id: string, vitals: Vitals) => {
     updateCase(id, { exitVitals: vitals });
