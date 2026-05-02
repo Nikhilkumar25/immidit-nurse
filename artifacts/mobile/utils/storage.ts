@@ -3,7 +3,7 @@ import type { NurseCase, NurseProfile, MockDoctor } from '@/types/case';
 
 const CASES_KEY = '@immidit/cases';
 const PROFILE_KEY = '@immidit/profile';
-const SEEDED_KEY = '@immidit/seeded';
+const SEEDED_KEY = '@immidit/seeded_v3';
 
 function makeId(index: number, dateStr: string) {
   return `IMM-${dateStr}-${String(index).padStart(4, '0')}`;
@@ -84,6 +84,50 @@ const SEED_CASES: NurseCase[] = [
     status: 'assigned',
     createdAt: new Date().toISOString(),
     pcrCompleted: false,
+    procedurePhotos: [],
+    samplePhotos: [],
+  },
+  // Demo case: already at Phase 5 (Procedure Documentation) — all prior phases completed
+  {
+    id: makeId(4, todayStr),
+    patientName: 'Meera Joshi',
+    patientAge: 44,
+    patientGender: 'F',
+    address: 'F-802, Ireo Grand Arch, Sector 58, Gurugram, Haryana 122011',
+    chiefIssue: 'Post-operative dressing change & blood sample collection — cholecystectomy Day 7',
+    urgency: 'Scheduled',
+    supplies: [
+      { id: 'd1', name: 'Sterile Dressing Kit', type: 'consumable', confirmed: true },
+      { id: 'd2', name: 'Betadine Solution', type: 'medicine', confirmed: true },
+      { id: 'd3', name: 'Vacutainer Set (4 tubes)', type: 'consumable', confirmed: true },
+      { id: 'd4', name: 'Surgical Gloves (M)', type: 'consumable', confirmed: true },
+      { id: 'd5', name: 'Consent Forms', type: 'consumable', confirmed: true },
+    ],
+    isVaccineVisit: false,
+    currentPhase: 5,
+    status: 'in_progress',
+    createdAt: new Date(Date.now() - 90 * 60000).toISOString(),
+    departureTime: new Date(Date.now() - 75 * 60000).toISOString(),
+    arrivalTime: new Date(Date.now() - 55 * 60000).toISOString(),
+    gpsCoordinates: { lat: 28.4089, lng: 77.0444 },
+    consentFormPhotoUri: 'seed://consent-form-p1',
+    deviceReadingPhotoUri: 'seed://device-reading-p1',
+    pcrCompleted: true,
+    pcrData: {
+      contactNumber: '+91 98112 34567',
+      emergencyContact: 'Ramesh Joshi (husband) — +91 98112 99001',
+      chiefComplaint: 'Post-cholecystectomy wound pain (3/10), mild erythema at incision site, blood draw for LFT & CBC',
+      formPage1Uri: 'seed://pcr-page1',
+      formPage2Uri: 'seed://pcr-page2',
+      visitOutcome: 'completed',
+      handoverNotes: 'Patient is alert and cooperative. Wound looks clean overall but slight redness noted. Blood samples collected in 3 vacutainers. Follow up with surgeon if erythema worsens.',
+    },
+    doctorConsultation: {
+      doctorName: 'Dr. Anand Mehta',
+      specialty: 'General Physician',
+      callDuration: '6 mins',
+      instructions: 'Continue current dressing protocol. If redness spreads beyond 2 cm from incision, escalate to surgical team immediately. LFT results expected within 24 hours.',
+    },
     procedurePhotos: [],
     samplePhotos: [],
   },
