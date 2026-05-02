@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import type { NurseCase, NurseProfile, PCRData, DoctorConsultation, Vitals, LabDropoff, PhaseNumber } from '@/types/case';
+import type {
+  NurseCase, NurseProfile, PCRData, DoctorConsultation,
+  Vitals, LabDropoff, PhaseNumber, RefusalData,
+} from '@/types/case';
 import { loadCases, saveCases, loadProfile, seedIfNeeded } from '@/utils/storage';
 
 interface CaseContextValue {
@@ -18,7 +21,8 @@ interface CaseContextValue {
   addSamplePhoto: (id: string, uri: string) => void;
   saveExitVitals: (id: string, vitals: Vitals) => void;
   saveLabDropoff: (id: string, dropoff: LabDropoff) => void;
-  closeCase: (id: string, outcome: NurseCase['caseOutcome'], notes: string) => void;
+  closeCase: (id: string, outcome: NurseCase['caseOutcome'], notes: string, exitVitals?: Vitals) => void;
+  refuseCase: (id: string, data: RefusalData) => void;
   confirmSupply: (caseId: string, supplyId: string, confirmed: boolean) => void;
   advancePhase: (id: string, phase: PhaseNumber) => void;
 }
@@ -39,11 +43,6 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
     init();
-  }, []);
-
-  const persist = useCallback(async (updated: NurseCase[]) => {
-    setCases(updated);
-    await saveCases(updated);
   }, []);
 
   const updateCase = useCallback((id: string, updates: Partial<NurseCase>) => {
@@ -145,13 +144,28 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
     updateCase(id, { labDropoff: dropoff });
   }, [updateCase]);
 
-  const closeCase = useCallback((id: string, outcome: NurseCase['caseOutcome'], notes: string) => {
+  const closeCase = useCallback((
+    id: string,
+    outcome: NurseCase['caseOutcome'],
+    notes: string,
+    exitVitals?: Vitals,
+  ) => {
     updateCase(id, {
       closeTime: new Date().toISOString(),
       status: 'closed',
       currentPhase: 6,
       caseOutcome: outcome,
       nurseNotes: notes,
+      ...(exitVitals ? { exitVitals } : {}),
+    });
+  }, [updateCase]);
+
+  const refuseCase = useCallback((id: string, data: RefusalData) => {
+    updateCase(id, {
+      refusalData: data,
+      closeTime: new Date().toISOString(),
+      status: 'closed',
+      caseOutcome: 'refused',
     });
   }, [updateCase]);
 
@@ -182,7 +196,8 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
       savePCR, saveDoctorConsult,
       addProcedurePhoto, addSamplePhoto,
       saveExitVitals, saveLabDropoff,
-      closeCase, confirmSupply, advancePhase,
+      closeCase, refuseCase,
+      confirmSupply, advancePhase,
     }}>
       {children}
     </CaseContext.Provider>

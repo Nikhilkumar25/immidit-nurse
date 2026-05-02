@@ -77,6 +77,18 @@ export interface DoctorConsultation {
 export interface LabDropoff {
   labName: string;
   dropoffTime: string;
+  sampleCount: string;
+  sealNumber: string;
+}
+
+export interface RefusalData {
+  reasons: string[];
+  otherReason: string;
+  additionalDetails: string;
+  witnessName: string;
+  formPhotoUri?: string;
+  nurseStatement: string;
+  submittedAt: string;
 }
 
 export interface NurseCase {
@@ -106,6 +118,7 @@ export interface NurseCase {
   samplePhotos: string[];
   exitVitals?: Vitals;
   labDropoff?: LabDropoff;
+  refusalData?: RefusalData;
   caseOutcome?: CaseOutcome;
   nurseNotes?: string;
 }

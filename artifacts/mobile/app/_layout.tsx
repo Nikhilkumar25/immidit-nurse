@@ -26,6 +26,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="case/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="case/pcr/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="case/refusal/[id]" options={{ headerShown: false }} />
     </Stack>
   );
 }
