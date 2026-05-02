@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "fW3g12Uv-y6qacrDEVen6"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "immidit nurse app icon"
