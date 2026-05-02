@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, TextInput, Platform,
+  TextInput, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
@@ -47,6 +47,9 @@ export default function CaseScreen() {
   const [labSampleCount, setLabSampleCount] = useState(c?.labDropoff?.sampleCount ?? '');
   const [labSealNumber, setLabSealNumber] = useState(c?.labDropoff?.sealNumber ?? '');
   const [labSaved, setLabSaved] = useState(!!c?.labDropoff);
+  const [labError, setLabError] = useState('');
+  // Inline close confirmation (replaces Alert which is blocked in iframes)
+  const [closeConfirming, setCloseConfirming] = useState(false);
 
   if (!c) {
     return (
@@ -82,9 +85,10 @@ export default function CaseScreen() {
 
   const handleLogLabDropoff = async () => {
     if (!labName.trim()) {
-      Alert.alert('Lab Name Required', 'Please enter the lab name before logging dropoff.');
+      setLabError('Lab name is required before logging the dropoff.');
       return;
     }
+    setLabError('');
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const dropoff: LabDropoff = {
       labName: labName.trim(),
@@ -96,24 +100,16 @@ export default function CaseScreen() {
     setLabSaved(true);
   };
 
-  const handleCloseCase = async () => {
+  const handleCloseCaseTap = async () => {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert(
-      'Close Case',
-      'Once closed, this case cannot be edited. Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Close Case',
-          style: 'destructive',
-          onPress: async () => {
-            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            closeCase(c.id, outcome as any, notes, exitVitals);
-            router.back();
-          },
-        },
-      ]
-    );
+    setCloseConfirming(true);
+  };
+
+  const handleCloseCaseConfirm = async () => {
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    closeCase(c.id, outcome as any, notes, exitVitals);
+    setCloseConfirming(false);
+    router.back();
   };
 
   const handleAdvanceProcedure = async () => {
@@ -476,41 +472,45 @@ export default function CaseScreen() {
                       </View>
                     </View>
                   ) : (
-                    phase === 6 && (
-                      <View style={[styles.labForm, { borderColor: colors.border, backgroundColor: colors.muted }]}>
+                    <View style={[styles.labForm, { borderColor: colors.border, backgroundColor: colors.muted }]}>
+                      <TextInput
+                        style={[styles.labInput, { borderBottomColor: colors.border, color: colors.foreground }]}
+                        placeholder="Lab name (e.g. SRL Diagnostics)"
+                        placeholderTextColor={colors.mutedForeground}
+                        value={labName}
+                        onChangeText={v => { setLabName(v); if (labError) setLabError(''); }}
+                      />
+                      <View style={styles.labRow}>
                         <TextInput
-                          style={[styles.labInput, { borderBottomColor: colors.border, color: colors.foreground }]}
-                          placeholder="Lab name (e.g. SRL Diagnostics)"
+                          style={[styles.labInputHalf, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card }]}
+                          placeholder="No. of samples"
                           placeholderTextColor={colors.mutedForeground}
-                          value={labName}
-                          onChangeText={setLabName}
+                          value={labSampleCount}
+                          onChangeText={setLabSampleCount}
+                          keyboardType="number-pad"
                         />
-                        <View style={styles.labRow}>
-                          <TextInput
-                            style={[styles.labInputHalf, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card }]}
-                            placeholder="No. of samples"
-                            placeholderTextColor={colors.mutedForeground}
-                            value={labSampleCount}
-                            onChangeText={setLabSampleCount}
-                            keyboardType="number-pad"
-                          />
-                          <TextInput
-                            style={[styles.labInputHalf, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card }]}
-                            placeholder="Bag seal number"
-                            placeholderTextColor={colors.mutedForeground}
-                            value={labSealNumber}
-                            onChangeText={setLabSealNumber}
-                          />
-                        </View>
-                        <TouchableOpacity
-                          style={[styles.labLogBtn, { backgroundColor: colors.primary }]}
-                          onPress={handleLogLabDropoff}
-                        >
-                          <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
-                          <Text style={styles.labLogBtnText}>Log Dropoff — Timestamp Now</Text>
-                        </TouchableOpacity>
+                        <TextInput
+                          style={[styles.labInputHalf, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card }]}
+                          placeholder="Bag seal number"
+                          placeholderTextColor={colors.mutedForeground}
+                          value={labSealNumber}
+                          onChangeText={setLabSealNumber}
+                        />
                       </View>
-                    )
+                      {!!labError && (
+                        <View style={styles.inlineError}>
+                          <Ionicons name="alert-circle-outline" size={14} color="#DC2626" />
+                          <Text style={styles.inlineErrorText}>{labError}</Text>
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={[styles.labLogBtn, { backgroundColor: colors.primary }]}
+                        onPress={handleLogLabDropoff}
+                      >
+                        <Ionicons name="time-outline" size={16} color="#fff" />
+                        <Text style={styles.labLogBtnText}>Log Dropoff — Timestamp Now</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
 
@@ -555,10 +555,31 @@ export default function CaseScreen() {
                   editable={phase === 6}
                 />
 
-                {phase === 6 && (
+                {closeConfirming ? (
+                  <View style={[styles.confirmBox, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+                    <Text style={[styles.confirmText, { color: '#991B1B' }]}>
+                      Once closed, this case cannot be edited. Are you sure?
+                    </Text>
+                    <View style={styles.confirmRow}>
+                      <TouchableOpacity
+                        style={[styles.confirmCancel, { borderColor: colors.border }]}
+                        onPress={() => setCloseConfirming(false)}
+                      >
+                        <Text style={[styles.confirmCancelText, { color: colors.foreground }]}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.confirmClose, { backgroundColor: '#B91C1C' }]}
+                        onPress={handleCloseCaseConfirm}
+                      >
+                        <Ionicons name="lock-closed-outline" size={16} color="#fff" />
+                        <Text style={styles.confirmCloseText}>Yes, Close Case</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
                   <TouchableOpacity
                     style={[styles.closeBtn, { backgroundColor: '#006D77' }]}
-                    onPress={handleCloseCase}
+                    onPress={handleCloseCaseTap}
                   >
                     <Ionicons name="lock-closed-outline" size={18} color="#fff" />
                     <Text style={styles.closeBtnText}>Close Case</Text>
@@ -965,5 +986,62 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     fontSize: 13,
     flex: 1,
+  },
+
+  inlineError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  inlineErrorText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: '#DC2626',
+    flex: 1,
+  },
+
+  confirmBox: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 16,
+    gap: 12,
+  },
+  confirmText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  confirmRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  confirmCancel: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmCancelText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+  },
+  confirmClose: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  confirmCloseText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    color: '#fff',
   },
 });

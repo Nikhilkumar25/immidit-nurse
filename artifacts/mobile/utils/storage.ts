@@ -3,7 +3,7 @@ import type { NurseCase, NurseProfile, MockDoctor } from '@/types/case';
 
 const CASES_KEY = '@immidit/cases';
 const PROFILE_KEY = '@immidit/profile';
-const SEEDED_KEY = '@immidit/seeded_v3';
+const SEEDED_KEY = '@immidit/seeded_v4';
 
 function makeId(index: number, dateStr: string) {
   return `IMM-${dateStr}-${String(index).padStart(4, '0')}`;
@@ -104,7 +104,6 @@ const SEED_CASES: NurseCase[] = [
       { id: 'd5', name: 'Consent Forms', type: 'consumable', confirmed: true },
     ],
     isVaccineVisit: false,
-    currentPhase: 5,
     status: 'in_progress',
     createdAt: new Date(Date.now() - 90 * 60000).toISOString(),
     departureTime: new Date(Date.now() - 75 * 60000).toISOString(),
@@ -128,8 +127,9 @@ const SEED_CASES: NurseCase[] = [
       callDuration: '6 mins',
       instructions: 'Continue current dressing protocol. If redness spreads beyond 2 cm from incision, escalate to surgical team immediately. LFT results expected within 24 hours.',
     },
-    procedurePhotos: [],
-    samplePhotos: [],
+    currentPhase: 6,
+    procedurePhotos: ['seed://procedure-photo-dressing', 'seed://procedure-photo-sample'],
+    samplePhotos: ['seed://sample-photo-vacutainer'],
   },
 ];
 
