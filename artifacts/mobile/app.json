@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "immidit Nurse",
-    "slug": "mobile",
+    "slug": "immidit-nurse",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "immidit-nurse",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -21,10 +21,16 @@
       }
     },
     "android": {
+      "package": "com.immidit.nurse",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#006D77"
+      },
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -55,6 +61,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "415bf27c-b927-452f-8127-1447296c1269"
+      }
+    },
+    "owner": "nikhil_kumar"
   }
 }

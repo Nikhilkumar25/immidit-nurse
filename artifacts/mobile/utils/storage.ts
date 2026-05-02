@@ -203,8 +203,8 @@ export async function loadCases(): Promise<NurseCase[]> {
   try {
     const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
     if (!apiUrl) {
-      console.warn('EXPO_PUBLIC_SHEETS_API_URL is missing. Falling back to local seed data.');
-      return [...SEED_CASES, ...SEED_HISTORY];
+      console.warn('EXPO_PUBLIC_SHEETS_API_URL is missing. No cases to show.');
+      return [];
     }
     const res = await fetch(`${apiUrl}?action=pull`);
     const data = await res.json();
@@ -217,7 +217,7 @@ export async function loadCases(): Promise<NurseCase[]> {
     }));
   } catch (error) {
     console.error('Failed to load cases from Sheets API:', error);
-    return [...SEED_CASES, ...SEED_HISTORY];
+    return [];
   }
 }
 
@@ -238,10 +238,10 @@ export async function saveCases(cases: NurseCase[]): Promise<void> {
 export async function loadProfile(): Promise<NurseProfile> {
   try {
     const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
-    if (!apiUrl) return SEED_PROFILE;
+    if (!apiUrl) return SEED_PROFILE; // Keeps at least one profile to login with
     const res = await fetch(`${apiUrl}?action=pull`);
     const data = await res.json();
-    // For now, return the first nurse profile or fallback
+    // Use the first nurse from the backend, or fallback if none exist
     return (data.nurses && data.nurses.length > 0) ? data.nurses[0] : SEED_PROFILE;
   } catch (error) {
     console.error('Failed to load profile from Sheets API:', error);
