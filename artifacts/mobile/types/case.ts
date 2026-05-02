@@ -28,43 +28,18 @@ export interface VaccineDetails {
   coldChainRequired: boolean;
 }
 
+/**
+ * PCRData — basics only, captured digitally.
+ * The full clinical form is photographed as two pages.
+ */
 export interface PCRData {
   contactNumber: string;
   emergencyContact: string;
-  hasDiabetes: boolean;
-  hasHypertension: boolean;
-  allergies: string;
-  currentMedications: string;
   chiefComplaint: string;
-  airway: string;
-  breathing: string;
-  circulation: string;
-  disability: string;
-  exposure: string;
-  vitals: Vitals;
-  nurseObservations: string;
-  doctorInstructions: string;
-  medicationsAdministered: MedicationEntry[];
-  consumablesUsed: ConsumableEntry[];
-  sampleType: string;
-  sampleTubes: string;
-  sampleLabName: string;
+  formPage1Uri?: string;
+  formPage2Uri?: string;
   visitOutcome: CaseOutcome;
   handoverNotes: string;
-}
-
-export interface MedicationEntry {
-  id: string;
-  name: string;
-  dosage: string;
-  quantity: string;
-  batchNumber: string;
-}
-
-export interface ConsumableEntry {
-  id: string;
-  name: string;
-  quantity: string;
 }
 
 export interface DoctorConsultation {
@@ -86,7 +61,8 @@ export interface RefusalData {
   otherReason: string;
   additionalDetails: string;
   witnessName: string;
-  formPhotoUri?: string;
+  formPage1Uri?: string;
+  formPage2Uri?: string;
   nurseStatement: string;
   submittedAt: string;
 }

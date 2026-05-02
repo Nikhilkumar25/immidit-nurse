@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   TextInput, Alert, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,7 +36,8 @@ export default function RefusalFormScreen() {
   const [otherReason, setOtherReason] = useState('');
   const [additionalDetails, setAdditionalDetails] = useState('');
   const [witnessName, setWitnessName] = useState('');
-  const [formPhotoUri, setFormPhotoUri] = useState<string | undefined>();
+  const [formPage1Uri, setFormPage1Uri] = useState<string | undefined>();
+  const [formPage2Uri, setFormPage2Uri] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
 
   if (!c) {
@@ -51,7 +52,7 @@ export default function RefusalFormScreen() {
   const nurseName = profile?.name ?? 'Nurse';
   const nurseId = profile?.id ?? 'N-001';
   const nurseStatement =
-    `I, ${nurseName} (ID: ${nurseId}), attempted to provide the scheduled healthcare service at the above address on ${formatDate(now)} at ${formatTime(now)}. The patient or their authorized representative declined the service for the reason(s) documented above. This refusal has been duly recorded in accordance with immidit nursing protocols.`;
+    `I, ${nurseName} (ID: ${nurseId}), attempted to provide the scheduled healthcare service at the above address on ${formatDate(now)} at ${formatTime(now)}. The patient or their authorised representative declined the service for the reason(s) documented above. This refusal has been duly recorded in accordance with immidit nursing protocols.`;
 
   const toggleReason = async (reason: string) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -62,11 +63,18 @@ export default function RefusalFormScreen() {
 
   const handleSubmit = async () => {
     if (selectedReasons.length === 0) {
-      Alert.alert('Select a Reason', 'Please select at least one reason for the patient\'s refusal.');
+      Alert.alert('Select a Reason', 'Please select at least one reason for the refusal.');
       return;
     }
     if (selectedReasons.includes('Other (specify below)') && !otherReason.trim()) {
       Alert.alert('Other Reason Required', 'Please specify the other reason for refusal.');
+      return;
+    }
+    if (!formPage1Uri || !formPage2Uri) {
+      Alert.alert(
+        'Both Pages Required',
+        'Please photograph both pages of the signed physical refusal form before submitting.',
+      );
       return;
     }
 
@@ -86,7 +94,8 @@ export default function RefusalFormScreen() {
               otherReason,
               additionalDetails,
               witnessName,
-              formPhotoUri,
+              formPage1Uri,
+              formPage2Uri,
               nurseStatement,
               submittedAt: new Date().toISOString(),
             });
@@ -100,6 +109,7 @@ export default function RefusalFormScreen() {
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
   const hasOther = selectedReasons.includes('Other (specify below)');
+  const bothPhotos = !!formPage1Uri && !!formPage2Uri;
 
   return (
     <>
@@ -125,41 +135,17 @@ export default function RefusalFormScreen() {
 
           {/* Case info block */}
           <View style={[styles.infoCard, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
-            <View style={styles.infoRow}>
-              <Text style={[styles.infoLabel, { color: '#991B1B' }]}>Patient</Text>
-              <Text style={[styles.infoValue, { color: '#7F1D1D' }]}>
-                {c.patientName}, {c.patientAge}y {c.patientGender}
-              </Text>
-            </View>
-            <View style={[styles.infoRow, { borderTopColor: '#FECACA', borderTopWidth: StyleSheet.hairlineWidth }]}>
-              <Text style={[styles.infoLabel, { color: '#991B1B' }]}>Visit ID</Text>
-              <Text style={[styles.infoValue, { color: '#7F1D1D' }]}>{c.id}</Text>
-            </View>
-            <View style={[styles.infoRow, { borderTopColor: '#FECACA', borderTopWidth: StyleSheet.hairlineWidth }]}>
-              <Text style={[styles.infoLabel, { color: '#991B1B' }]}>Date & Time</Text>
-              <Text style={[styles.infoValue, { color: '#7F1D1D' }]}>{formatDate(now)} · {formatTime(now)}</Text>
-            </View>
-            <View style={[styles.infoRow, { borderTopColor: '#FECACA', borderTopWidth: StyleSheet.hairlineWidth }]}>
-              <Text style={[styles.infoLabel, { color: '#991B1B' }]}>Address</Text>
-              <Text style={[styles.infoValue, { color: '#7F1D1D', flex: 1, textAlign: 'right' }]} numberOfLines={2}>
-                {c.address}
-              </Text>
-            </View>
-            <View style={[styles.infoRow, { borderTopColor: '#FECACA', borderTopWidth: StyleSheet.hairlineWidth }]}>
-              <Text style={[styles.infoLabel, { color: '#991B1B' }]}>Nurse</Text>
-              <Text style={[styles.infoValue, { color: '#7F1D1D' }]}>{nurseName} · {nurseId}</Text>
-            </View>
+            <InfoRow label="Patient" value={`${c.patientName}, ${c.patientAge}y ${c.patientGender}`} />
+            <InfoRow label="Visit ID" value={c.id} />
+            <InfoRow label="Date & Time" value={`${formatDate(now)} · ${formatTime(now)}`} />
+            <InfoRow label="Address" value={c.address} multiline />
+            <InfoRow label="Nurse" value={`${nurseName} · ${nurseId}`} last />
           </View>
 
-          {/* Reason for Refusal */}
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Reason for Refusal
-          </Text>
-          <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>
-            Select all that apply. At least one reason is required.
-          </Text>
+          {/* Reasons */}
+          <SectionLabel label="Reason for Refusal" hint="Select all that apply. At least one is required." colors={colors} />
 
-          <View style={[styles.reasonsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {REFUSAL_REASONS.map((reason, i) => {
               const checked = selectedReasons.includes(reason);
               return (
@@ -192,7 +178,10 @@ export default function RefusalFormScreen() {
 
           {hasOther && (
             <TextInput
-              style={[styles.textInput, { borderColor: '#DC2626', color: colors.foreground, backgroundColor: colors.card }]}
+              style={[styles.textInput, {
+                marginHorizontal: 20, marginTop: 8,
+                borderColor: '#DC2626', color: colors.foreground, backgroundColor: colors.card,
+              }]}
               placeholder="Specify the other reason..."
               placeholderTextColor={colors.mutedForeground}
               value={otherReason}
@@ -204,14 +193,12 @@ export default function RefusalFormScreen() {
           )}
 
           {/* Additional Details */}
-          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>
-            Additional Details
-          </Text>
-          <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>
-            Any other context, patient statements, or observations.
-          </Text>
+          <SectionLabel label="Additional Details" hint="Any context, patient statements, or observations." colors={colors} />
           <TextInput
-            style={[styles.textArea, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card }]}
+            style={[styles.textArea, {
+              marginHorizontal: 20,
+              borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card,
+            }]}
             placeholder="e.g. Patient stated they had already visited a hospital this morning..."
             placeholderTextColor={colors.mutedForeground}
             value={additionalDetails}
@@ -222,50 +209,92 @@ export default function RefusalFormScreen() {
           />
 
           {/* Nurse Certification */}
-          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>
-            Nurse Certification
-          </Text>
-          <View style={[styles.statementBox, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}>
-            <Ionicons name="shield-checkmark-outline" size={16} color="#0284C7" style={{ marginTop: 1 }} />
+          <SectionLabel label="Nurse Certification" hint="Auto-generated from your profile and current time." colors={colors} />
+          <View style={[styles.statementBox, { marginHorizontal: 20, backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}>
+            <Ionicons name="shield-checkmark-outline" size={16} color="#0284C7" style={{ marginTop: 1, flexShrink: 0 }} />
             <Text style={[styles.statementText, { color: '#0C4A6E' }]}>{nurseStatement}</Text>
           </View>
 
           {/* Witness */}
-          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>
-            Witness Name <Text style={[styles.optional, { color: colors.mutedForeground }]}>(Optional)</Text>
-          </Text>
+          <SectionLabel
+            label="Witness Name"
+            hint="Optional — full name of any witness present."
+            colors={colors}
+          />
           <TextInput
-            style={[styles.textInput, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card }]}
-            placeholder="Full name of any witness present"
+            style={[styles.textInput, {
+              marginHorizontal: 20,
+              borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card,
+            }]}
+            placeholder="Witness full name"
             placeholderTextColor={colors.mutedForeground}
             value={witnessName}
             onChangeText={setWitnessName}
           />
 
-          {/* Physical Form Photo */}
-          <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 20 }]}>
-            Photo of Signed Physical Form
-          </Text>
-          <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>
-            Photograph the patient or caregiver's signed physical refusal form. If no signature was obtained, document the refusal verbally in Additional Details above.
-          </Text>
-          <PhotoCapture
-            label="Physical Refusal Form"
-            subtitle="Ensure the patient/caregiver signature is clearly visible."
-            uri={formPhotoUri}
-            onCapture={setFormPhotoUri}
+          {/* Physical Form Photos — 2 pages */}
+          <SectionLabel
+            label="Physical Refusal Form — Photos"
+            hint="Photograph both pages of the signed physical refusal form. Patient or caregiver signature must be clearly visible."
+            colors={colors}
           />
 
-          {/* Submit */}
-          <View style={[styles.warningBox, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
-            <Ionicons name="warning-outline" size={16} color="#C2410C" />
+          <View style={[styles.instructionBox, { marginHorizontal: 20, backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+            <Ionicons name="camera-outline" size={15} color="#2563EB" />
+            <Text style={[styles.instructionText, { color: '#1E40AF' }]}>
+              Capture the full page in frame. Ensure handwriting and the patient signature are legible. No gallery uploads — use camera only.
+            </Text>
+          </View>
+
+          <View style={{ marginHorizontal: 20, marginTop: 12 }}>
+            <PhotoCapture
+              label="Page 1 of 2"
+              subtitle="Patient details, reason checkboxes, initial statement."
+              uri={formPage1Uri}
+              onCapture={setFormPage1Uri}
+            />
+            <PhotoCapture
+              label="Page 2 of 2"
+              subtitle="Nurse certification, witness section, patient/caregiver signature."
+              uri={formPage2Uri}
+              onCapture={setFormPage2Uri}
+            />
+          </View>
+
+          {/* Photo status banner */}
+          <View style={[
+            styles.statusBanner,
+            {
+              marginHorizontal: 20,
+              backgroundColor: bothPhotos ? '#F0FDF4' : '#FFF7ED',
+              borderColor: bothPhotos ? '#BBF7D0' : '#FED7AA',
+            },
+          ]}>
+            <Ionicons
+              name={bothPhotos ? 'checkmark-circle' : 'alert-circle-outline'}
+              size={16}
+              color={bothPhotos ? '#16A34A' : '#C2410C'}
+            />
+            <Text style={[styles.statusText, { color: bothPhotos ? '#15803D' : '#9A3412' }]}>
+              {bothPhotos
+                ? 'Both pages captured — ready to submit.'
+                : `${!formPage1Uri ? 'Page 1' : 'Page 2'} photo still needed.`}
+            </Text>
+          </View>
+
+          {/* Warning */}
+          <View style={[styles.warningBox, { marginHorizontal: 20, backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+            <Ionicons name="warning-outline" size={16} color="#C2410C" style={{ flexShrink: 0, marginTop: 1 }} />
             <Text style={[styles.warningText, { color: '#9A3412' }]}>
-              Submitting this form will permanently seal the case as refused. Ensure all information is accurate before proceeding.
+              Submitting this form permanently seals the case as refused. Ensure all information is accurate before proceeding.
             </Text>
           </View>
 
           <TouchableOpacity
-            style={[styles.submitBtn, { backgroundColor: submitting ? '#9CA3AF' : '#B91C1C' }]}
+            style={[styles.submitBtn, {
+              marginHorizontal: 20,
+              backgroundColor: submitting ? '#9CA3AF' : '#B91C1C',
+            }]}
             onPress={handleSubmit}
             disabled={submitting}
           >
@@ -278,6 +307,46 @@ export default function RefusalFormScreen() {
     </>
   );
 }
+
+function SectionLabel({ label, hint, colors }: { label: string; hint?: string; colors: any }) {
+  return (
+    <View style={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 8 }}>
+      <Text style={[sectionStyles.title, { color: colors.foreground }]}>{label}</Text>
+      {hint && <Text style={[sectionStyles.hint, { color: colors.mutedForeground }]}>{hint}</Text>}
+    </View>
+  );
+}
+
+const sectionStyles = StyleSheet.create({
+  title: { fontFamily: 'Inter_700Bold', fontSize: 15 },
+  hint: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17, marginTop: 2 },
+});
+
+function InfoRow({ label, value, multiline, last }: { label: string; value: string; multiline?: boolean; last?: boolean }) {
+  return (
+    <View style={[infoStyles.row, last && { borderBottomWidth: 0 }]}>
+      <Text style={infoStyles.label}>{label}</Text>
+      <Text style={[infoStyles.value, multiline && { maxWidth: 220, textAlign: 'right' }]} numberOfLines={multiline ? 2 : 1}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+const infoStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#FECACA',
+    gap: 12,
+  },
+  label: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#991B1B', minWidth: 80 },
+  value: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#7F1D1D', flex: 1, textAlign: 'right' },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -300,70 +369,26 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
   headerContent: { flex: 1 },
-  headerLabel: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
-    color: '#fff',
-  },
-  headerSub: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 1,
-  },
+  headerLabel: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#fff' },
+  headerSub: { fontFamily: 'Inter_400Regular', fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
 
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
+  scroll: { paddingBottom: 40 },
 
   infoCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
     borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 24,
     overflow: 'hidden',
   },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 12,
-  },
-  infoLabel: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    minWidth: 80,
-  },
-  infoValue: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    textAlign: 'right',
-  },
 
-  sectionTitle: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 15,
-    marginBottom: 4,
-  },
-  sectionHint: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: 10,
-  },
-  optional: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 13,
-  },
-
-  reasonsCard: {
+  card: {
+    marginHorizontal: 20,
     borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 10,
     overflow: 'hidden',
   },
+
   reasonRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -394,7 +419,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
-    marginBottom: 4,
   },
   textArea: {
     borderWidth: 1,
@@ -421,6 +445,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  instructionBox: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  instructionText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    lineHeight: 19,
+    flex: 1,
+  },
+
+  statusBanner: {
+    marginTop: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    flex: 1,
+  },
+
   warningBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -428,7 +482,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     padding: 12,
-    marginTop: 20,
+    marginTop: 12,
     marginBottom: 12,
   },
   warningText: {

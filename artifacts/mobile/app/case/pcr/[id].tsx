@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Switch, Alert, Platform,
+  View, Text, StyleSheet, TouchableOpacity,
+  TextInput, Alert, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
@@ -10,87 +10,20 @@ import * as Haptics from 'expo-haptics';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useColors } from '@/hooks/useColors';
 import { useCases } from '@/contexts/CaseContext';
-import { VitalsForm } from '@/components/VitalsForm';
-import type { PCRData, Vitals, MedicationEntry, ConsumableEntry } from '@/types/case';
+import { PhotoCapture } from '@/components/PhotoCapture';
+import { formatDate } from '@/utils/storage';
+import type { PCRData, CaseOutcome } from '@/types/case';
 
-const EMPTY_VITALS: Vitals = { bp: '', pr: '', spo2: '', temp: '', rr: '', gcs: '' };
-
-function emptyPCR(c: any): PCRData {
+function emptyPCR(chiefIssue: string): PCRData {
   return {
     contactNumber: '',
     emergencyContact: '',
-    hasDiabetes: false,
-    hasHypertension: false,
-    allergies: '',
-    currentMedications: '',
-    chiefComplaint: c?.chiefIssue ?? '',
-    airway: '',
-    breathing: '',
-    circulation: '',
-    disability: '',
-    exposure: '',
-    vitals: { ...EMPTY_VITALS },
-    nurseObservations: '',
-    doctorInstructions: '',
-    medicationsAdministered: [],
-    consumablesUsed: [],
-    sampleType: '',
-    sampleTubes: '',
-    sampleLabName: '',
+    chiefComplaint: chiefIssue,
+    formPage1Uri: undefined,
+    formPage2Uri: undefined,
     visitOutcome: 'completed',
     handoverNotes: '',
   };
-}
-
-function makeId() {
-  return Date.now().toString() + Math.random().toString(36).substr(2, 5);
-}
-
-function SectionHeader({ title }: { title: string }) {
-  const colors = useColors();
-  return (
-    <View style={[styles.sectionHeader, { backgroundColor: colors.muted }]}>
-      <Text style={[styles.sectionHeaderText, { color: colors.primary }]}>{title}</Text>
-    </View>
-  );
-}
-
-function ToggleRow({ label, value, onToggle }: { label: string; value: boolean; onToggle: (v: boolean) => void }) {
-  const colors = useColors();
-  return (
-    <View style={[styles.toggleRow, { borderTopColor: colors.border }]}>
-      <Text style={[styles.toggleLabel, { color: colors.foreground }]}>{label}</Text>
-      <Switch value={value} onValueChange={onToggle} trackColor={{ true: colors.primary }} />
-    </View>
-  );
-}
-
-function FieldInput({
-  label, value, onChange, placeholder, multiline, keyboardType
-}: {
-  label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; multiline?: boolean; keyboardType?: any;
-}) {
-  const colors = useColors();
-  return (
-    <View style={[styles.fieldRow, { borderTopColor: colors.border }]}>
-      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
-      <TextInput
-        style={[
-          styles.fieldInput,
-          { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted },
-          multiline && styles.multilineInput,
-        ]}
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder ?? ''}
-        placeholderTextColor={colors.mutedForeground}
-        multiline={multiline}
-        textAlignVertical={multiline ? 'top' : 'center'}
-        keyboardType={keyboardType ?? 'default'}
-      />
-    </View>
-  );
 }
 
 export default function PCRScreen() {
@@ -100,47 +33,22 @@ export default function PCRScreen() {
   const { getCaseById, savePCR } = useCases();
 
   const c = getCaseById(id ?? '');
-  const [pcr, setPCR] = useState<PCRData>(c?.pcrData ?? emptyPCR(c));
+  const [pcr, setPCR] = useState<PCRData>(c?.pcrData ?? emptyPCR(c?.chiefIssue ?? ''));
 
-  const update = (field: keyof PCRData, value: any) => {
+  const update = <K extends keyof PCRData>(field: K, value: PCRData[K]) => {
     setPCR(prev => ({ ...prev, [field]: value }));
-  };
-
-  const updateVitals = (v: Vitals) => update('vitals', v);
-
-  const addMedication = () => {
-    const entry: MedicationEntry = { id: makeId(), name: '', dosage: '', quantity: '', batchNumber: '' };
-    update('medicationsAdministered', [...pcr.medicationsAdministered, entry]);
-  };
-
-  const updateMedication = (id: string, field: keyof MedicationEntry, val: string) => {
-    update('medicationsAdministered', pcr.medicationsAdministered.map(m =>
-      m.id === id ? { ...m, [field]: val } : m
-    ));
-  };
-
-  const removeMedication = (id: string) => {
-    update('medicationsAdministered', pcr.medicationsAdministered.filter(m => m.id !== id));
-  };
-
-  const addConsumable = () => {
-    const entry: ConsumableEntry = { id: makeId(), name: '', quantity: '' };
-    update('consumablesUsed', [...pcr.consumablesUsed, entry]);
-  };
-
-  const updateConsumable = (id: string, field: keyof ConsumableEntry, val: string) => {
-    update('consumablesUsed', pcr.consumablesUsed.map(c =>
-      c.id === id ? { ...c, [field]: val } : c
-    ));
-  };
-
-  const removeConsumable = (id: string) => {
-    update('consumablesUsed', pcr.consumablesUsed.filter(c => c.id !== id));
   };
 
   const handleSave = async () => {
     if (!pcr.chiefComplaint.trim()) {
-      Alert.alert('Required field missing', 'Please enter the chief complaint.');
+      Alert.alert('Chief Complaint Required', 'Please enter the chief complaint before saving.');
+      return;
+    }
+    if (!pcr.formPage1Uri || !pcr.formPage2Uri) {
+      Alert.alert(
+        'Both Pages Required',
+        'Please photograph both pages of the physical PCR form before saving.',
+      );
       return;
     }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -151,18 +59,33 @@ export default function PCRScreen() {
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
+  if (!c) {
+    return (
+      <View style={[styles.notFound, { backgroundColor: colors.background }]}>
+        <Text style={[styles.notFoundText, { color: colors.foreground }]}>Case not found.</Text>
+      </View>
+    );
+  }
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.container, { backgroundColor: colors.background }]}>
+
         {/* Header */}
-        <View style={[styles.header, { paddingTop: topPad + 10, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <View style={[styles.header, {
+          paddingTop: topPad + 10,
+          backgroundColor: colors.card,
+          borderBottomColor: colors.border,
+        }]}>
           <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={22} color={colors.foreground} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>PCR Form</Text>
-            <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>{c?.patientName ?? ''}</Text>
+            <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>
+              {c.patientName} · {c.id}
+            </Text>
           </View>
           <TouchableOpacity
             style={[styles.saveBtn, { backgroundColor: colors.primary }]}
@@ -177,105 +100,138 @@ export default function PCRScreen() {
           bottomOffset={20}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Demographics */}
-          <SectionHeader title="Patient Demographics" />
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <FieldInput label="Contact Number" value={pcr.contactNumber} onChange={v => update('contactNumber', v)} placeholder="+91 XXXXX XXXXX" keyboardType="phone-pad" />
-            <FieldInput label="Emergency Contact" value={pcr.emergencyContact} onChange={v => update('emergencyContact', v)} placeholder="Name & number" />
+
+          {/* Patient summary — read-only */}
+          <View style={[styles.patientCard, { backgroundColor: colors.secondary, borderColor: colors.primary + '30' }]}>
+            <View style={styles.patientRow}>
+              <Ionicons name="person-circle-outline" size={20} color={colors.primary} />
+              <Text style={[styles.patientName, { color: colors.primary }]}>{c.patientName}</Text>
+              <Text style={[styles.patientMeta, { color: colors.primary + 'AA' }]}>
+                {c.patientAge}y · {c.patientGender}
+              </Text>
+            </View>
+            <Text style={[styles.patientIssue, { color: colors.primary + 'CC' }]} numberOfLines={2}>
+              {c.chiefIssue}
+            </Text>
+            <Text style={[styles.patientDate, { color: colors.mutedForeground }]}>
+              {formatDate(c.createdAt)} · {c.address.split(',')[0]}
+            </Text>
           </View>
 
-          {/* Medical History */}
-          <SectionHeader title="Medical History" />
+          {/* Section: Basic Details */}
+          <SectionHeader label="Basic Patient Details" colors={colors} />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <ToggleRow label="Diabetes" value={pcr.hasDiabetes} onToggle={v => update('hasDiabetes', v)} />
-            <ToggleRow label="Hypertension" value={pcr.hasHypertension} onToggle={v => update('hasHypertension', v)} />
-            <FieldInput label="Known Allergies" value={pcr.allergies} onChange={v => update('allergies', v)} placeholder="None / specify" />
-            <FieldInput label="Current Medications" value={pcr.currentMedications} onChange={v => update('currentMedications', v)} placeholder="List medications" multiline />
+            <FieldRow
+              label="Contact Number"
+              value={pcr.contactNumber}
+              onChange={v => update('contactNumber', v)}
+              placeholder="+91 XXXXX XXXXX"
+              keyboardType="phone-pad"
+              colors={colors}
+              first
+            />
+            <FieldRow
+              label="Emergency Contact"
+              value={pcr.emergencyContact}
+              onChange={v => update('emergencyContact', v)}
+              placeholder="Name & phone number"
+              colors={colors}
+            />
+            <FieldRow
+              label="Chief Complaint"
+              value={pcr.chiefComplaint}
+              onChange={v => update('chiefComplaint', v)}
+              placeholder="Patient's primary complaint"
+              multiline
+              colors={colors}
+            />
           </View>
 
-          {/* Chief Complaint */}
-          <SectionHeader title="Chief Complaint" />
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <FieldInput label="Chief Complaint" value={pcr.chiefComplaint} onChange={v => update('chiefComplaint', v)} placeholder="Patient's primary complaint" multiline />
+          {/* Section: Physical Form Photos */}
+          <SectionHeader label="Physical PCR Form — Photos" colors={colors} />
+          <View style={[styles.instructionBox, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+            <Ionicons name="camera-outline" size={16} color="#2563EB" />
+            <Text style={[styles.instructionText, { color: '#1E40AF' }]}>
+              Photograph both pages of the completed physical PCR form. Ensure all handwritten entries are clearly legible and the full page is captured within frame.
+            </Text>
           </View>
 
-          {/* ABCDE Survey */}
-          <SectionHeader title="ABCDE Survey" />
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <FieldInput label="Airway" value={pcr.airway} onChange={v => update('airway', v)} placeholder="Patent / Compromised" />
-            <FieldInput label="Breathing" value={pcr.breathing} onChange={v => update('breathing', v)} placeholder="Rate, effort, sounds" />
-            <FieldInput label="Circulation" value={pcr.circulation} onChange={v => update('circulation', v)} placeholder="Pulse quality, skin" />
-            <FieldInput label="Disability / Neuro" value={pcr.disability} onChange={v => update('disability', v)} placeholder="GCS, pupils, orientation" />
-            <FieldInput label="Exposure" value={pcr.exposure} onChange={v => update('exposure', v)} placeholder="Visible injuries, rash, edema" />
+          <View style={styles.photosSection}>
+            <PhotoCapture
+              label="Page 1 of 2"
+              subtitle="Patient demographics, medical history, chief complaint, ABCDE survey, vitals."
+              uri={pcr.formPage1Uri}
+              onCapture={uri => update('formPage1Uri', uri)}
+            />
+            <PhotoCapture
+              label="Page 2 of 2"
+              subtitle="Nurse observations, medications administered, consumables, sample details, handover."
+              uri={pcr.formPage2Uri}
+              onCapture={uri => update('formPage2Uri', uri)}
+            />
           </View>
 
-          {/* Vitals */}
-          <SectionHeader title="Vitals on Arrival" />
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 14 }]}>
-            <VitalsForm vitals={pcr.vitals} onChange={updateVitals} />
-          </View>
-
-          {/* Nurse Observations */}
-          <SectionHeader title="Nurse Observations & Doctor Instructions" />
+          {/* Section: Handover notes */}
+          <SectionHeader label="Digital Handover Notes" colors={colors} />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <FieldInput label="Nurse Observations & Actions" value={pcr.nurseObservations} onChange={v => update('nurseObservations', v)} placeholder="Clinical findings and nursing actions taken" multiline />
-            <FieldInput label="Doctor Instructions" value={pcr.doctorInstructions} onChange={v => update('doctorInstructions', v)} placeholder="Filled post-call (if applicable)" multiline />
-          </View>
-
-          {/* Medications Administered */}
-          <SectionHeader title="Medications Administered" />
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {pcr.medicationsAdministered.map((med, i) => (
-              <View key={med.id} style={[styles.dynamicRow, { borderTopColor: colors.border, borderTopWidth: i > 0 ? 1 : 0 }]}>
-                <View style={styles.dynamicFields}>
-                  <TextInput style={[styles.inlineInput, { borderColor: colors.border, color: colors.foreground, flex: 2 }]} placeholder="Medicine name" placeholderTextColor={colors.mutedForeground} value={med.name} onChangeText={v => updateMedication(med.id, 'name', v)} />
-                  <TextInput style={[styles.inlineInput, { borderColor: colors.border, color: colors.foreground, flex: 1 }]} placeholder="Dosage" placeholderTextColor={colors.mutedForeground} value={med.dosage} onChangeText={v => updateMedication(med.id, 'dosage', v)} />
-                  <TextInput style={[styles.inlineInput, { borderColor: colors.border, color: colors.foreground, flex: 1 }]} placeholder="Qty" placeholderTextColor={colors.mutedForeground} value={med.quantity} onChangeText={v => updateMedication(med.id, 'quantity', v)} keyboardType="number-pad" />
-                </View>
-                <TextInput style={[styles.inlineInput, { borderColor: colors.border, color: colors.foreground, marginTop: 6 }]} placeholder="Batch number" placeholderTextColor={colors.mutedForeground} value={med.batchNumber} onChangeText={v => updateMedication(med.id, 'batchNumber', v)} />
-                <TouchableOpacity style={styles.removeBtn} onPress={() => removeMedication(med.id)}>
-                  <Ionicons name="trash-outline" size={16} color="#DC2626" />
-                </TouchableOpacity>
+            <View style={[styles.fieldBlock, { borderTopWidth: 0 }]}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Outcome</Text>
+              <View style={styles.outcomeRow}>
+                {(['completed', 'referred', 'incomplete'] as CaseOutcome[]).map(o => (
+                  <TouchableOpacity
+                    key={o}
+                    style={[
+                      styles.outcomeChip,
+                      {
+                        backgroundColor: pcr.visitOutcome === o ? colors.primary : colors.muted,
+                        borderColor: pcr.visitOutcome === o ? colors.primary : colors.border,
+                      },
+                    ]}
+                    onPress={() => update('visitOutcome', o)}
+                  >
+                    <Text style={[styles.outcomeText, { color: pcr.visitOutcome === o ? '#fff' : colors.foreground }]}>
+                      {o.charAt(0).toUpperCase() + o.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            ))}
-            <TouchableOpacity style={[styles.addBtn, { borderColor: colors.border }]} onPress={addMedication}>
-              <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
-              <Text style={[styles.addBtnText, { color: colors.primary }]}>Add Medication</Text>
-            </TouchableOpacity>
+            </View>
+            <View style={[styles.fieldBlock, { borderTopColor: colors.border }]}>
+              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Notes for next team</Text>
+              <TextInput
+                style={[styles.textArea, { color: colors.foreground }]}
+                placeholder="Next visit instructions, pending tests, flags for receiving team..."
+                placeholderTextColor={colors.mutedForeground}
+                value={pcr.handoverNotes}
+                onChangeText={v => update('handoverNotes', v)}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
           </View>
 
-          {/* Consumables */}
-          <SectionHeader title="Consumables Used" />
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {pcr.consumablesUsed.map((con, i) => (
-              <View key={con.id} style={[styles.dynamicRow, { borderTopColor: colors.border, borderTopWidth: i > 0 ? 1 : 0 }]}>
-                <View style={styles.dynamicFields}>
-                  <TextInput style={[styles.inlineInput, { borderColor: colors.border, color: colors.foreground, flex: 3 }]} placeholder="Consumable name" placeholderTextColor={colors.mutedForeground} value={con.name} onChangeText={v => updateConsumable(con.id, 'name', v)} />
-                  <TextInput style={[styles.inlineInput, { borderColor: colors.border, color: colors.foreground, flex: 1 }]} placeholder="Qty" placeholderTextColor={colors.mutedForeground} value={con.quantity} onChangeText={v => updateConsumable(con.id, 'quantity', v)} keyboardType="number-pad" />
-                </View>
-                <TouchableOpacity style={styles.removeBtn} onPress={() => removeConsumable(con.id)}>
-                  <Ionicons name="trash-outline" size={16} color="#DC2626" />
-                </TouchableOpacity>
-              </View>
-            ))}
-            <TouchableOpacity style={[styles.addBtn, { borderColor: colors.border }]} onPress={addConsumable}>
-              <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
-              <Text style={[styles.addBtnText, { color: colors.primary }]}>Add Consumable</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Sample Collection */}
-          <SectionHeader title="Sample Collection" />
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <FieldInput label="Sample Type" value={pcr.sampleType} onChange={v => update('sampleType', v)} placeholder="Blood / Urine / Swab / None" />
-            <FieldInput label="Tubes / Containers" value={pcr.sampleTubes} onChange={v => update('sampleTubes', v)} placeholder="EDTA, SST, etc." />
-            <FieldInput label="Lab Name" value={pcr.sampleLabName} onChange={v => update('sampleLabName', v)} placeholder="Lab name for dropoff" />
-          </View>
-
-          {/* Handover */}
-          <SectionHeader title="Handover Notes" />
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <FieldInput label="Handover Notes" value={pcr.handoverNotes} onChange={v => update('handoverNotes', v)} placeholder="Notes for next visit or receiving team" multiline />
+          {/* Photo completion status */}
+          <View style={[
+            styles.completionBanner,
+            {
+              backgroundColor: (pcr.formPage1Uri && pcr.formPage2Uri) ? '#F0FDF4' : '#FFF7ED',
+              borderColor: (pcr.formPage1Uri && pcr.formPage2Uri) ? '#BBF7D0' : '#FED7AA',
+            },
+          ]}>
+            <Ionicons
+              name={(pcr.formPage1Uri && pcr.formPage2Uri) ? 'checkmark-circle' : 'alert-circle-outline'}
+              size={16}
+              color={(pcr.formPage1Uri && pcr.formPage2Uri) ? '#16A34A' : '#C2410C'}
+            />
+            <Text style={[
+              styles.completionText,
+              { color: (pcr.formPage1Uri && pcr.formPage2Uri) ? '#15803D' : '#9A3412' },
+            ]}>
+              {pcr.formPage1Uri && pcr.formPage2Uri
+                ? 'Both pages photographed — ready to save.'
+                : `${!pcr.formPage1Uri ? 'Page 1' : 'Page 2'} photo still needed.`}
+            </Text>
           </View>
 
           <TouchableOpacity
@@ -285,14 +241,67 @@ export default function PCRScreen() {
             <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
             <Text style={styles.bigSaveBtnText}>Save PCR & Continue</Text>
           </TouchableOpacity>
+
         </KeyboardAwareScrollView>
       </View>
     </>
   );
 }
 
+function SectionHeader({ label, colors }: { label: string; colors: any }) {
+  return (
+    <Text style={[sectionStyles.header, { color: colors.mutedForeground }]}>{label.toUpperCase()}</Text>
+  );
+}
+
+const sectionStyles = StyleSheet.create({
+  header: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    letterSpacing: 0.8,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
+  },
+});
+
+function FieldRow({
+  label, value, onChange, placeholder, multiline, keyboardType, colors, first,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  multiline?: boolean;
+  keyboardType?: any;
+  colors: any;
+  first?: boolean;
+}) {
+  return (
+    <View style={[
+      styles.fieldBlock,
+      { borderTopColor: colors.border, borderTopWidth: first ? 0 : StyleSheet.hairlineWidth },
+    ]}>
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
+      <TextInput
+        style={[styles.fieldInput, { color: colors.foreground }, multiline && styles.multiline]}
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder ?? ''}
+        placeholderTextColor={colors.mutedForeground}
+        keyboardType={keyboardType ?? 'default'}
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : 'center'}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  notFoundText: { fontFamily: 'Inter_500Medium', fontSize: 16 },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -319,108 +328,149 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   saveBtnText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 14,
     color: '#fff',
   },
+
   scroll: {
-    paddingTop: 8,
     paddingBottom: 40,
   },
-  sectionHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    marginBottom: 0,
+
+  patientCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    gap: 5,
   },
-  sectionHeaderText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 13,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  card: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    marginBottom: 16,
-    backgroundColor: '#fff',
-  },
-  toggleRow: {
+  patientRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  toggleLabel: {
-    fontFamily: 'Inter_400Regular',
-    fontSize: 16,
-  },
-  fieldRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
     gap: 6,
+  },
+  patientName: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+  },
+  patientMeta: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+  },
+  patientIssue: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  patientDate: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    marginTop: 2,
+  },
+
+  card: {
+    marginHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  fieldBlock: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 5,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   fieldLabel: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 12,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   fieldInput: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 15,
-    borderWidth: 0,
+    fontSize: 16,
     padding: 0,
+    minHeight: 24,
   },
-  multilineInput: {
+  multiline: {
     minHeight: 60,
     lineHeight: 22,
   },
-  dynamicRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 4,
-  },
-  dynamicFields: {
+
+  instructionBox: {
+    marginHorizontal: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 8,
   },
-  inlineInput: {
+  instructionText: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 14,
-    borderWidth: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    flex: 1,
+  },
+
+  photosSection: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    gap: 0,
+  },
+
+  outcomeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  outcomeChip: {
     borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
   },
-  removeBtn: {
-    position: 'absolute',
-    top: 14,
-    right: 16,
+  outcomeText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
   },
-  addBtn: {
+  textArea: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+    minHeight: 80,
+    padding: 0,
+  },
+
+  completionBanner: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderTopWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: 8,
   },
-  addBtnText: {
+  completionText: {
     fontFamily: 'Inter_500Medium',
-    fontSize: 14,
+    fontSize: 13,
+    flex: 1,
   },
+
   bigSaveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     marginHorizontal: 20,
-    marginTop: 8,
+    marginTop: 14,
     borderRadius: 14,
     paddingVertical: 16,
   },
