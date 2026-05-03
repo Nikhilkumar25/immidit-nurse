@@ -14,6 +14,7 @@ import { PhaseCard } from '@/components/PhaseCard';
 import { SupplyChecklist } from '@/components/SupplyChecklist';
 import { PhotoCapture } from '@/components/PhotoCapture';
 import { DoctorConnect } from '@/components/DoctorConnect';
+import { OrderLineItem } from '@/components/OrderLineItem';
 import { VitalsForm } from '@/components/VitalsForm';
 import { UrgencyBadge } from '@/components/UrgencyBadge';
 import { formatTime, formatDate } from '@/utils/storage';
@@ -32,10 +33,10 @@ export default function CaseScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
-    getCaseById, markDeparture, markArrival,
+    getCaseById, updateCase, markDeparture, markArrival,
     setConsentPhoto, setDeviceReadingPhoto,
     saveDoctorConsult, addProcedurePhoto, addSamplePhoto,
-    saveLabDropoff, closeCase, confirmSupply, advancePhase,
+    saveLabDropoff, closeCase, confirmSupply, advancePhase, updateOrderLine,
   } = useCases();
 
   const c = getCaseById(id ?? '');
@@ -103,6 +104,16 @@ export default function CaseScreen() {
   const handleCloseCaseTap = async () => {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     setCloseConfirming(true);
+  };
+
+  const handleNotesUpdate = (val: string) => {
+    setNotes(val);
+    updateCase(c.id, { nurseNotes: val });
+  };
+
+  const handleVitalsUpdate = (v: Vitals) => {
+    setExitVitals(v);
+    updateCase(c.id, { exitVitals: v });
   };
 
   const handleCloseCaseConfirm = async () => {
@@ -374,26 +385,32 @@ export default function CaseScreen() {
             />
           </PhaseCard>
 
-          {/* ── PHASE 5: Procedure Documentation ── */}
+          {/* ── PHASE 5: Clinical Order Actionables ── */}
           <PhaseCard
             phaseNumber={5}
-            title="Procedure Documentation"
-            icon="camera-outline"
+            title="Order Actionables"
+            icon="list-outline"
             status={isRefused ? 'locked' : getPhaseStatus(phase, 5)}
           >
-            <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Procedure Photos</Text>
+            <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Clinical Orders</Text>
             <Text style={[styles.sectionHint, { color: colors.mutedForeground }]}>
-              Capture consumables opened, dressing or vaccination in progress, IV setup, and any sample collection.
+              Execute and document each order from the doctor. Items can be marked as Refused if patient declines specific care.
             </Text>
 
-            {c.procedurePhotos.map((uri, i) => (
-              <PhotoCapture
-                key={i}
-                label={`Procedure Photo ${i + 1}`}
-                uri={uri}
-                onCapture={() => {}}
-                disabled
+            {(c.orderLines || []).map((l) => (
+              <OrderLineItem
+                key={l.id}
+                line={l}
+                onUpdate={(status, photo) => updateOrderLine(c.id, l.id, status, photo)}
+                colors={colors}
               />
+            ))}
+
+            <View style={[styles.divider, { borderColor: colors.border, marginTop: 12 }]} />
+            
+            <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Procedure Photos</Text>
+            {c.procedurePhotos.map((uri, i) => (
+              <PhotoCapture key={i} label={`Procedure Photo ${i + 1}`} uri={uri} onCapture={() => {}} disabled />
             ))}
 
             {phase === 5 && (
@@ -404,29 +421,9 @@ export default function CaseScreen() {
               />
             )}
 
-            <Text style={[styles.sectionLabel, { color: colors.foreground, marginTop: 8 }]}>
-              Sample Photos
-            </Text>
-            {c.samplePhotos.map((uri, i) => (
-              <PhotoCapture
-                key={`sample-${i}`}
-                label={`Sample Photo ${i + 1}`}
-                uri={uri}
-                onCapture={() => {}}
-                disabled
-              />
-            ))}
-            {phase === 5 && (
-              <PhotoCapture
-                label="Add Sample Photo"
-                subtitle="Sample tube with label and seal number clearly visible."
-                onCapture={uri => addSamplePhoto(c.id, uri)}
-              />
-            )}
-
-            {phase === 5 && c.procedurePhotos.length > 0 && (
+            {phase === 5 && (c.orderLines || []).every(l => l.status !== 'pending') && (
               <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: colors.primary, marginTop: 8 }]}
+                style={[styles.primaryBtn, { backgroundColor: colors.primary, marginTop: 12 }]}
                 onPress={handleAdvanceProcedure}
               >
                 <Ionicons name="arrow-forward-circle-outline" size={18} color="#fff" />
@@ -455,7 +452,7 @@ export default function CaseScreen() {
                 <VitalsForm
                   title="Exit Vitals"
                   vitals={exitVitals}
-                  onChange={setExitVitals}
+                  onChange={handleVitalsUpdate}
                   disabled={phase !== 6}
                 />
 
@@ -555,7 +552,7 @@ export default function CaseScreen() {
                   placeholder="Any notes for the receiving team, next visit instructions..."
                   placeholderTextColor={colors.mutedForeground}
                   value={notes}
-                  onChangeText={setNotes}
+                  onChangeText={handleNotesUpdate}
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"

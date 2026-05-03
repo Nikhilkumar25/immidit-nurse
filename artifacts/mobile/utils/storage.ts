@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { NurseCase, NurseProfile, MockDoctor } from '@/types/case';
+import type { NurseCase, NurseProfile, DoctorProfile } from '@/types/case';
 
 const CASES_KEY = '@immidit/cases';
 const PROFILE_KEY = '@immidit/profile';
@@ -187,13 +187,28 @@ const SEED_PROFILE: NurseProfile = {
   joinedDate: '2025-08-01',
 };
 
-export const MOCK_DOCTORS: MockDoctor[] = [
-  { id: 'D-001', name: 'Dr. Anand Mehta', specialty: 'General Physician', isOnline: true, yearsExp: 14 },
-  { id: 'D-002', name: 'Dr. Sunita Rao', specialty: 'Cardiologist', isOnline: true, yearsExp: 18 },
-  { id: 'D-003', name: 'Dr. Pradeep Joshi', specialty: 'Paediatrician', isOnline: false, yearsExp: 11 },
-  { id: 'D-004', name: 'Dr. Meena Sharma', specialty: 'Gynaecologist', isOnline: true, yearsExp: 9 },
-  { id: 'D-005', name: 'Dr. Kiran Patel', specialty: 'General Physician', isOnline: false, yearsExp: 7 },
-];
+// Doctors are now fetched dynamically from the cloud backend.
+export async function loadDoctors(): Promise<DoctorProfile[]> {
+  try {
+    const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
+    if (!apiUrl) return [];
+    const res = await fetch(`${apiUrl}?action=pull`);
+    const data = await res.json();
+    const doctors = (data.doctors || []) as any[];
+    return doctors.map(d => ({
+      id: d.id,
+      name: d.profile?.name || d.username,
+      specialty: d.profile?.specialty || 'General Physician',
+      isOnline: !!d.active,
+      experience: d.profile?.experience || '0',
+      qualification: d.profile?.qualification || '',
+      regId: d.profile?.regId || '',
+    }));
+  } catch (error) {
+    console.error('Failed to load doctors:', error);
+    return [];
+  }
+}
 
 export async function seedIfNeeded(): Promise<void> {
   // No-op for Google Sheets (seeding happens via setupSheets in Code.gs)
@@ -223,29 +238,61 @@ export async function loadCases(): Promise<NurseCase[]> {
 
 export async function saveCases(cases: NurseCase[]): Promise<void> {
   try {
+    // 1. Always save to local disk first (Immediate)
+    await AsyncStorage.setItem(CASES_KEY, JSON.stringify(cases));
+    
+    // 2. Push to cloud (Background)
     const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
     if (!apiUrl) return;
+    
     await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'saveCases', data: cases }),
     });
+    console.log('Cases saved locally and pushed to cloud');
   } catch (error) {
     console.error('Failed to save cases to Sheets API:', error);
   }
 }
 
-export async function loadProfile(): Promise<NurseProfile> {
+export async function saveProfile(profile: NurseProfile): Promise<void> {
+  await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+export async function clearProfile(): Promise<void> {
+  await AsyncStorage.removeItem(PROFILE_KEY);
+}
+
+export async function loadProfile(): Promise<NurseProfile | null> {
+  try {
+    const data = await AsyncStorage.getItem(PROFILE_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.error('Failed to load profile from AsyncStorage:', error);
+    return null;
+  }
+}
+
+export async function login(nurseId: string, passcode: string): Promise<NurseProfile | null> {
   try {
     const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
-    if (!apiUrl) return SEED_PROFILE; // Keeps at least one profile to login with
+    if (!apiUrl) throw new Error('API URL missing');
+    
     const res = await fetch(`${apiUrl}?action=pull`);
     const data = await res.json();
-    // Use the first nurse from the backend, or fallback if none exist
-    return (data.nurses && data.nurses.length > 0) ? data.nurses[0] : SEED_PROFILE;
+    const nurses = (data.nurses || []) as NurseProfile[];
+    
+    const match = nurses.find(n => n.id === nurseId && n.password === passcode);
+    if (match) {
+      await saveProfile(match);
+      return match;
+    }
+    return null;
   } catch (error) {
-    console.error('Failed to load profile from Sheets API:', error);
-    return SEED_PROFILE;
+    console.error('Login failed:', error);
+    return null;
   }
 }
 

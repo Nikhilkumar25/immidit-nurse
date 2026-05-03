@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert 
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
-import { MOCK_DOCTORS } from '@/utils/storage';
-import type { DoctorConsultation } from '@/types/case';
+import { useCases } from '@/contexts/CaseContext';
+import type { DoctorConsultation, DoctorProfile } from '@/types/case';
 
 interface Props {
   existing?: DoctorConsultation;
@@ -15,6 +15,7 @@ const SPECIALTIES = ['General Physician', 'Cardiologist', 'Paediatrician', 'Gyna
 
 export function DoctorConnect({ existing, onSave }: Props) {
   const colors = useColors();
+  const { doctors } = useCases();
   const [selectedSpecialty, setSelectedSpecialty] = useState('');
   const [calling, setCalling] = useState(false);
   const [calledDoctor, setCalledDoctor] = useState<string | null>(existing?.doctorName ?? null);
@@ -22,7 +23,7 @@ export function DoctorConnect({ existing, onSave }: Props) {
   const [callDuration, setCallDuration] = useState(existing?.callDuration ?? '');
   const [saved, setSaved] = useState(!!existing);
 
-  const filteredDoctors = MOCK_DOCTORS.filter(
+  const filteredDoctors = doctors.filter(
     d => !selectedSpecialty || d.specialty === selectedSpecialty
   );
 
@@ -36,7 +37,7 @@ export function DoctorConnect({ existing, onSave }: Props) {
   const handleSave = async () => {
     if (!calledDoctor) return;
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const specialty = MOCK_DOCTORS.find(d => d.name === calledDoctor)?.specialty ?? '';
+    const specialty = doctors.find(d => d.name === calledDoctor)?.specialty ?? '';
     onSave({ doctorName: calledDoctor, specialty, callDuration, instructions });
     setSaved(true);
   };
@@ -81,7 +82,11 @@ export function DoctorConnect({ existing, onSave }: Props) {
       </View>
 
       <View style={styles.doctorList}>
-        {filteredDoctors.map(doc => (
+        {filteredDoctors.length === 0 ? (
+          <View style={{ padding: 20, alignItems: 'center' }}>
+            <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>No doctors found in this specialty.</Text>
+          </View>
+        ) : filteredDoctors.map(doc => (
           <View
             key={doc.id}
             style={[styles.doctorRow, { backgroundColor: colors.muted, borderColor: colors.border }]}
@@ -95,7 +100,7 @@ export function DoctorConnect({ existing, onSave }: Props) {
                 <View style={[styles.onlineDot, { backgroundColor: doc.isOnline ? '#16A34A' : '#9CA3AF' }]} />
               </View>
               <Text style={[styles.docMeta, { color: colors.mutedForeground }]}>
-                {doc.specialty} · {doc.yearsExp}y exp
+                {doc.specialty} · {doc.experience}y exp
               </Text>
             </View>
             <TouchableOpacity

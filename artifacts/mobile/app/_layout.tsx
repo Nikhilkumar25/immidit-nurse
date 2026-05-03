@@ -20,9 +20,39 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+import { useRouter, useSegments } from 'expo-router';
+import { useCases } from "@/contexts/CaseContext";
+
 function RootLayoutNav() {
+  const { profile, loading } = useCases();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+
+    const inAuthGroup = segments[0] === 'login';
+
+    if (!profile && !inAuthGroup) {
+      // Redirect to login if not authenticated
+      router.replace('/login');
+    } else if (profile && inAuthGroup) {
+      // Redirect to home if authenticated and on login screen
+      router.replace('/(tabs)');
+    }
+  }, [profile, loading, segments]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
+      <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="case/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="case/pcr/[id]" options={{ headerShown: false }} />
@@ -30,6 +60,8 @@ function RootLayoutNav() {
     </Stack>
   );
 }
+
+import { View, ActivityIndicator } from 'react-native';
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({

@@ -67,6 +67,21 @@ export interface RefusalData {
   submittedAt: string;
 }
 
+export type OrderLineType = 'procedure' | 'lab_test' | 'diagnostic_test' | 'medication' | 'referral';
+export type OrderLineStatus = 'pending' | 'administered' | 'collected' | 'accepted' | 'refused' | 'declined';
+
+export interface OrderLine {
+  id: string;
+  type: OrderLineType;
+  details: string;
+  instructions?: string;
+  tube?: string;
+  status: OrderLineStatus;
+  updatedAt: string;
+  photoUri?: string;
+  icon?: string;
+}
+
 export interface NurseCase {
   id: string;
   patientName: string;
@@ -98,6 +113,9 @@ export interface NurseCase {
   lastUpdatedLocation?: { lat: number; lng: number; timestamp: string };
   caseOutcome?: CaseOutcome;
   nurseNotes?: string;
+  orderLines: OrderLine[];
+  linkedPrescriptionId?: string;
+  updatedAt: string;
 }
 
 export interface NurseProfile {
@@ -107,12 +125,15 @@ export interface NurseProfile {
   phone: string;
   casesCompleted: number;
   joinedDate: string;
+  password?: string;
 }
 
-export interface MockDoctor {
+export interface DoctorProfile {
   id: string;
   name: string;
   specialty: string;
   isOnline: boolean;
-  yearsExp: number;
+  experience: string;
+  qualification?: string;
+  regId?: string;
 }

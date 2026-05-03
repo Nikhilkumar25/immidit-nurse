@@ -30,13 +30,19 @@ export default function PCRScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getCaseById, savePCR } = useCases();
+  const { getCaseById, updateCase, savePCR } = useCases();
 
   const c = getCaseById(id ?? '');
   const [pcr, setPCR] = useState<PCRData>(c?.pcrData ?? emptyPCR(c?.chiefIssue ?? ''));
 
+  // Atomic Sync: Save each step completion to the cloud instantly
   const update = <K extends keyof PCRData>(field: K, value: PCRData[K]) => {
-    setPCR(prev => ({ ...prev, [field]: value }));
+    const nextPCR = { ...pcr, [field]: value };
+    setPCR(nextPCR);
+    
+    // Immediate Push for step-level persistence
+    // We don't mark pcrCompleted: true until the final save
+    updateCase(id ?? '', { pcrData: nextPCR });
   };
 
   const handleSave = async () => {
@@ -52,6 +58,7 @@ export default function PCRScreen() {
       return;
     }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Mark as completed and advance phase
     savePCR(id ?? '', pcr);
     router.back();
   };
