@@ -1,3 +1,7 @@
+import 'react-native-get-random-values';
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
+
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -15,6 +19,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CaseProvider } from "@/contexts/CaseContext";
+import { CallProvider } from "@/contexts/CallContext";
+import { CallOverlay } from "@/components/CallOverlay";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -104,11 +110,14 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <CaseProvider>
-            <GestureHandlerRootView>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
+            <CallProvider>
+              <GestureHandlerRootView>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                  <CallOverlay />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </CallProvider>
           </CaseProvider>
         </QueryClientProvider>
       </ErrorBoundary>

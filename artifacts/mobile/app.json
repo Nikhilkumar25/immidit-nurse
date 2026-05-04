@@ -23,6 +23,7 @@
       "supportsTablet": false,
       "infoPlist": {
         "NSCameraUsageDescription": "immidit Nurse requires camera access to capture clinical photos for case documentation.",
+        "NSMicrophoneUsageDescription": "immidit Nurse requires microphone access for live consultations with doctors.",
         "NSLocationWhenInUseUsageDescription": "immidit Nurse uses your location to GPS-tag arrival at patient sites for accurate case records."
       }
     },
@@ -36,13 +37,15 @@
         "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
+      "react-native-webrtc",
       [
         "expo-router",
         {
