@@ -31,6 +31,9 @@ function RootLayoutNav() {
   useEffect(() => {
     if (loading) return;
 
+    // Hide splash screen once syncing is complete
+    SplashScreen.hideAsync();
+
     const inAuthGroup = segments[0] === 'login';
 
     if (!profile && !inAuthGroup) {
@@ -93,12 +96,7 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
-
+  // Note: SplashScreen hiding is now handled in RootLayoutNav after data syncing
   if (!fontsLoaded && !fontError) return null;
 
   return (
