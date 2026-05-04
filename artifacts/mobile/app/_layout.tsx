@@ -44,8 +44,30 @@ function RootLayoutNav() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FDFCFB' }}>
+        <View style={{ 
+          backgroundColor: 'white', 
+          padding: 25, 
+          borderRadius: 24, 
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.08,
+          shadowRadius: 16,
+          elevation: 4,
+          marginBottom: 32,
+          borderWidth: 1,
+          borderColor: '#F0EBE6'
+        }}>
+          <Image 
+            source={require('@/assets/images/logo.png')} 
+            style={{ width: 140, height: 50 }} 
+            resizeMode="contain" 
+          />
+        </View>
+        <ActivityIndicator size="small" color="#F5621E" />
+        <Text style={{ marginTop: 16, fontSize: 11, letterSpacing: 1.2, color: '#A09890', fontWeight: '600', textTransform: 'uppercase' }}>
+          Syncing Clinical Data...
+        </Text>
       </View>
     );
   }
@@ -61,7 +83,7 @@ function RootLayoutNav() {
   );
 }
 
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Image, Text } from 'react-native';
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({

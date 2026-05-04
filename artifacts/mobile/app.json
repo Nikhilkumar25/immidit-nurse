@@ -4,7 +4,7 @@
     "slug": "immidit-nurse",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logo.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "immidit-nurse",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -29,7 +29,7 @@
     "android": {
       "package": "com.immidit.nurse",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/logo.png",
+        "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#FFFFFF"
       },
       "permissions": [
@@ -40,7 +40,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/images/logo.png"
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       [

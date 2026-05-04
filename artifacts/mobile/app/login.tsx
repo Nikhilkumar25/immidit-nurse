@@ -55,11 +55,25 @@ export default function LoginScreen() {
       <StatusBar style="dark" />
       <View style={styles.inner}>
         <View style={styles.header}>
-          <Image 
-            source={require('@/assets/images/logo.png')} 
-            style={styles.logoImage} 
-            resizeMode="contain" 
-          />
+          <View style={{ 
+            backgroundColor: 'white', 
+            padding: 22, 
+            borderRadius: 20, 
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.06,
+            shadowRadius: 12,
+            elevation: 3,
+            marginBottom: 24,
+            borderWidth: 1,
+            borderColor: '#F2EDE9'
+          }}>
+            <Image 
+              source={require('@/assets/images/logo.png')} 
+              style={styles.logoImage} 
+              resizeMode="contain" 
+            />
+          </View>
           <Text style={[styles.title, { color: colors.text }]}>immidit Nurse</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Field Operations Portal</Text>
         </View>
