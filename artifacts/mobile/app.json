@@ -41,7 +41,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "navigationBar": {
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": "#f6efe9",
         "barStyle": "dark-content"
       }
     },
