@@ -1,7 +1,3 @@
-import 'react-native-get-random-values';
-import { Buffer } from 'buffer';
-global.Buffer = Buffer;
-
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -13,14 +9,34 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { View, ActivityIndicator, Image, Text } from 'react-native';
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CaseProvider } from "@/contexts/CaseContext";
-import { CallProvider } from "@/contexts/CallContext";
-import { CallOverlay } from "@/components/CallOverlay";
+
+// SAFE LOAD WEBRTC: Prevents crashes on old binaries lacking native drivers
+let CallProvider = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+let CallOverlay = () => null;
+
+try {
+  // Check if native random values (required for WebRTC/PeerJS) is available
+  require('react-native-get-random-values');
+  const { Buffer } = require('buffer');
+  global.Buffer = Buffer;
+  
+  // Try to load WebRTC components
+  const { CallProvider: ActualCallProvider } = require("@/contexts/CallContext");
+  const { CallOverlay: ActualCallOverlay } = require("@/components/CallOverlay");
+  
+  CallProvider = ActualCallProvider;
+  CallOverlay = ActualCallOverlay;
+  console.log("WebRTC Calling System: Ready (Native)");
+} catch (e) {
+  console.log("WebRTC Calling System: Dormant (Native drivers missing)");
+}
 
 SplashScreen.preventAutoHideAsync();
 
@@ -37,16 +53,13 @@ function RootLayoutNav() {
   useEffect(() => {
     if (loading) return;
 
-    // Hide splash screen once syncing is complete
     SplashScreen.hideAsync();
 
     const inAuthGroup = segments[0] === 'login';
 
     if (!profile && !inAuthGroup) {
-      // Redirect to login if not authenticated
       router.replace('/login');
     } else if (profile && inAuthGroup) {
-      // Redirect to home if authenticated and on login screen
       router.replace('/(tabs)');
     }
   }, [profile, loading, segments]);
@@ -92,8 +105,6 @@ function RootLayoutNav() {
   );
 }
 
-import { View, ActivityIndicator, Image, Text } from 'react-native';
-
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
@@ -102,7 +113,6 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  // Note: SplashScreen hiding is now handled in RootLayoutNav after data syncing
   if (!fontsLoaded && !fontError) return null;
 
   return (
@@ -111,7 +121,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <CaseProvider>
             <CallProvider>
-              <GestureHandlerRootView>
+              <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
                   <RootLayoutNav />
                   <CallOverlay />

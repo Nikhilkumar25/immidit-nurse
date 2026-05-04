@@ -296,22 +296,15 @@ export async function saveCases(cases: NurseCase[]): Promise<void> {
     // 1. Always save to local disk first (Immediate)
     await AsyncStorage.setItem(CASES_KEY, JSON.stringify(cases));
     
-    // 2. Push to cloud (Background)
+    // 2. Push to cloud (Background - DO NOT AWAIT)
     const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
     if (!apiUrl) return;
     
-    const res = await fetch(apiUrl, {
+    fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'saveCases', data: cases }),
-    });
-
-    if (!res.ok) {
-      throw new Error(`Cloud save failed with status ${res.status}`);
-    }
-    
-    const result = await res.json();
-    console.log('Cases successfully synced to cloud:', result.count);
+    }).catch(err => console.warn('Cloud sync error:', err));
   } catch (error) {
     console.error('Failed to save cases to Sheets API:', error);
     // Important: Rethrow so the UI can handle the error state if needed

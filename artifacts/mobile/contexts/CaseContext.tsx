@@ -158,29 +158,33 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateCase = useCallback(async (id: string, updates: Partial<NurseCase>) => {
-    isSyncing.current = true;
-    try {
-      const locUpdate = await getCurrentLocation();
-      
-      setAllCases(prev => {
-        const now = new Date().toISOString();
-        const next = prev.map(c => c.id === id ? { 
-          ...c, 
-          ...updates, 
-          lastUpdatedLocation: locUpdate || c.lastUpdatedLocation,
-          updatedAt: now 
-        } : c);
-        
-        import('@/utils/storage').then(m => m.saveCases(next).finally(() => {
-          isSyncing.current = false;
-        }));
-        return next;
-      });
-    } catch (e) {
-      isSyncing.current = false;
-      console.error("Update failed:", e);
-    }
-  }, []);
+    const now = new Date().toISOString();
+    
+    // 1. Instant Optimistic Update
+    setAllCases(prev => prev.map(c => c.id === id ? { 
+      ...c, 
+      ...updates, 
+      updatedAt: now 
+    } : c));
+
+    // 2. Background persistence and location
+    (async () => {
+      try {
+        const locUpdate = await getCurrentLocation();
+        setAllCases(prev => {
+          const next = prev.map(c => c.id === id ? { 
+            ...c, 
+            lastUpdatedLocation: locUpdate || c.lastUpdatedLocation,
+          } : c);
+          
+          import('@/utils/storage').then(m => m.saveCases(next));
+          return next;
+        });
+      } catch (e) {
+        console.warn("Background update failed:", e);
+      }
+    })();
+  }, [getCurrentLocation]);
 
   const loginUser = useCallback(async (nurseId: string, passcode: string) => {
     const { login: doLogin } = await import('@/utils/storage');
