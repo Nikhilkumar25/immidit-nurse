@@ -300,15 +300,22 @@ export async function saveCases(cases: NurseCase[]): Promise<void> {
     const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
     if (!apiUrl) return;
     
-    await fetch(apiUrl, {
+    const res = await fetch(apiUrl, {
       method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'saveCases', data: cases }),
     });
-    console.log('Cases saved locally and pushed to cloud');
+
+    if (!res.ok) {
+      throw new Error(`Cloud save failed with status ${res.status}`);
+    }
+    
+    const result = await res.json();
+    console.log('Cases successfully synced to cloud:', result.count);
   } catch (error) {
     console.error('Failed to save cases to Sheets API:', error);
+    // Important: Rethrow so the UI can handle the error state if needed
+    throw error;
   }
 }
 

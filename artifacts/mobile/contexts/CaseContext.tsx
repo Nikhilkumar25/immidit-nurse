@@ -48,8 +48,10 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
   const [labs, setLabs] = useState<Lab[]>([]);
   const notifiedCaseIds = useRef<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const isSyncing = useRef(false);
 
   const refreshCases = useCallback(async () => {
+    if (isSyncing.current) return;
     try {
       const { loadCases: fetchCases, loadDoctors: fetchDoctors, loadLabs: fetchLabs } = await import('@/utils/storage');
       const [cloudCases, d, l] = await Promise.all([fetchCases(), fetchDoctors(), fetchLabs()]);
@@ -156,20 +158,28 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateCase = useCallback(async (id: string, updates: Partial<NurseCase>) => {
-    const locUpdate = await getCurrentLocation();
-    
-    setAllCases(prev => {
-      const now = new Date().toISOString();
-      const next = prev.map(c => c.id === id ? { 
-        ...c, 
-        ...updates, 
-        lastUpdatedLocation: locUpdate || c.lastUpdatedLocation,
-        updatedAt: now 
-      } : c);
+    isSyncing.current = true;
+    try {
+      const locUpdate = await getCurrentLocation();
       
-      import('@/utils/storage').then(m => m.saveCases(next));
-      return next;
-    });
+      setAllCases(prev => {
+        const now = new Date().toISOString();
+        const next = prev.map(c => c.id === id ? { 
+          ...c, 
+          ...updates, 
+          lastUpdatedLocation: locUpdate || c.lastUpdatedLocation,
+          updatedAt: now 
+        } : c);
+        
+        import('@/utils/storage').then(m => m.saveCases(next).finally(() => {
+          isSyncing.current = false;
+        }));
+        return next;
+      });
+    } catch (e) {
+      isSyncing.current = false;
+      console.error("Update failed:", e);
+    }
   }, []);
 
   const loginUser = useCallback(async (nurseId: string, passcode: string) => {
@@ -279,17 +289,25 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
     await updateCase(id, { procedurePhotos: newPhotos });
 
     import('@/utils/storage').then(async m => {
-      const cloudUrl = await m.uploadMedia(uri, `proc_${id}_${Date.now()}.jpg`, 'image/jpeg');
-      // Find the case again to get latest photos list
-      setAllCases(prev => prev.map(item => {
-        if (item.id !== id) return item;
-        return {
-          ...item,
-          procedurePhotos: item.procedurePhotos.map(p => p === uri ? cloudUrl : p)
-        };
-      }));
+      try {
+        const cloudUrl = await m.uploadMedia(uri, `proc_${id}_${Date.now()}.jpg`, 'image/jpeg');
+        // Retrieve current state to ensure we don't overwrite other photos added during upload
+        setAllCases(prev => {
+          const target = prev.find(item => item.id === id);
+          if (!target) return prev;
+          
+          const updatedPhotos = target.procedurePhotos.map(p => p === uri ? cloudUrl : p);
+          const next = prev.map(item => item.id === id ? { ...item, procedurePhotos: updatedPhotos } : item);
+          
+          // CRITICAL: Push the cloud URL to the sheet immediately
+          m.saveCases(next);
+          return next;
+        });
+      } catch (e) {
+        console.error("Procedure photo upload failed:", e);
+      }
     });
-  }, [cases, updateCase]);
+  }, [updateCase]);
 
   const addSamplePhoto = useCallback(async (id: string, uri: string) => {
     const c = cases.find(x => x.id === id);
@@ -299,16 +317,21 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
     await updateCase(id, { samplePhotos: newPhotos });
 
     import('@/utils/storage').then(async m => {
-      const cloudUrl = await m.uploadMedia(uri, `sample_${id}_${Date.now()}.jpg`, 'image/jpeg');
-      setAllCases(prev => prev.map(item => {
-        if (item.id !== id) return item;
-        return {
-          ...item,
-          samplePhotos: item.samplePhotos.map(p => p === uri ? cloudUrl : p)
-        };
-      }));
+      try {
+        const cloudUrl = await m.uploadMedia(uri, `sample_${id}_${Date.now()}.jpg`, 'image/jpeg');
+        setAllCases(prev => {
+          const target = prev.find(item => item.id === id);
+          if (!target) return prev;
+          const updatedPhotos = target.samplePhotos.map(p => p === uri ? cloudUrl : p);
+          const next = prev.map(item => item.id === id ? { ...item, samplePhotos: updatedPhotos } : item);
+          m.saveCases(next);
+          return next;
+        });
+      } catch (e) {
+        console.error("Sample photo upload failed:", e);
+      }
     });
-  }, [cases, updateCase]);
+  }, [updateCase]);
 
   const saveExitVitals = useCallback((id: string, vitals: Vitals) => {
     updateCase(id, { exitVitals: vitals });
