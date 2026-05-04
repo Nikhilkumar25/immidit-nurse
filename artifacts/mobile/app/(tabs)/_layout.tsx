@@ -43,12 +43,11 @@ function ClassicTabLayout() {
         headerShown: false,
         tabBarStyle: {
           position: isIOS ? "absolute" : "relative",
-          backgroundColor: "#FAF3ED", // Warm Beige
-          borderTopWidth: 0.5,
+          backgroundColor: isIOS ? "transparent" : colors.card,
+          borderTopWidth: 1,
           borderTopColor: colors.border,
           elevation: 0,
-          height: Platform.OS === 'android' ? 75 : 84,
-          paddingBottom: Platform.OS === 'android' ? 15 : 28,
+          ...(isWeb && { height: 84 }),
         },
         tabBarBackground: () =>
           isIOS ? (
