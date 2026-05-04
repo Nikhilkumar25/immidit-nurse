@@ -395,6 +395,18 @@ export default function CaseScreen() {
                 updateCase(c.id, { consultationRequested: false });
               }}
             />
+
+            {c.doctorConsultation?.observations && (
+              <View style={[styles.actionablesBox, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                <View style={styles.actionablesHeader}>
+                  <Ionicons name="flash" size={16} color="#D97706" />
+                  <Text style={[styles.actionablesTitle, { color: '#92400E' }]}>Live Clinical Actionables</Text>
+                </View>
+                <Text style={[styles.actionablesText, { color: '#78350F' }]}>{c.doctorConsultation.observations}</Text>
+                <View style={[styles.divider, { marginVertical: 10, opacity: 0.3 }]} />
+                <Text style={[styles.actionablesSub, { color: '#B45309' }]}>Instructions: {c.doctorConsultation.instructions}</Text>
+              </View>
+            )}
           </PhaseCard>
 
           {/* ── PHASE 5: Clinical Order Actionables ── */}
@@ -1186,5 +1198,33 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
     minHeight: 44,
+  },
+  actionablesBox: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  actionablesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  actionablesTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  actionablesText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  actionablesSub: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    fontStyle: 'italic',
   },
 });

@@ -60,6 +60,7 @@ export interface DoctorConsultation {
   specialty: string;
   callDuration: string;
   instructions: string;
+  observations?: string;
   voiceRecordingUri?: string;
 }
 
