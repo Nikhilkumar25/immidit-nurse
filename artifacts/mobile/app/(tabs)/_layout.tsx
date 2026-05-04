@@ -42,12 +42,12 @@ function ClassicTabLayout() {
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
         tabBarStyle: {
-          position: "absolute",
+          position: isIOS ? "absolute" : "relative",
           backgroundColor: isIOS ? "transparent" : colors.card,
           borderTopWidth: 1,
           borderTopColor: colors.border,
           elevation: 0,
-          height: isWeb ? 84 : 60,
+          ...(isWeb && { height: 84 }),
         },
         tabBarBackground: () =>
           isIOS ? (
@@ -56,11 +56,7 @@ function ClassicTabLayout() {
               tint={isDark ? "dark" : "light"}
               style={StyleSheet.absoluteFill}
             />
-          ) : (
-            <View
-              style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]}
-            />
-          ),
+          ) : undefined,
       }}
     >
       <Tabs.Screen
