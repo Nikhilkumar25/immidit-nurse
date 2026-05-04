@@ -63,15 +63,15 @@ export default function ProfileScreen() {
       <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.infoSectionTitle, { color: colors.foreground }]}>Contact Details</Text>
         <InfoRow icon="call-outline" label="Phone" value={profile?.phone ?? '+91 98765 43210'} colors={colors} />
-        <InfoRow icon="ribbon-outline" label="Cases Completed" value={String(profile?.casesCompleted ?? 0)} colors={colors} />
+        <InfoRow icon="ribbon-outline" label="Cases Completed" value={String((profile?.casesCompleted ?? 0) + stats.closed)} colors={colors} />
         <InfoRow icon="calendar-outline" label="Joined" value={profile?.joinedDate ?? '—'} colors={colors} />
       </View>
 
       <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.infoSectionTitle, { color: colors.foreground }]}>Zone Coverage</Text>
         <View style={styles.zoneList}>
-          {['Sector 54', 'Sector 56', 'Sector 57'].map(z => (
-            <View key={z} style={[styles.zoneChip, { backgroundColor: colors.secondary }]}>
+          {(profile?.zone ? profile.zone.split(',').map(z => z.trim()) : ['Gurugram']).map((z, idx) => (
+            <View key={idx} style={[styles.zoneChip, { backgroundColor: colors.secondary }]}>
               <Text style={[styles.zoneChipText, { color: colors.primary }]}>{z}</Text>
             </View>
           ))}
@@ -83,6 +83,20 @@ export default function ProfileScreen() {
         <InfoRow icon="medkit-outline" label="App" value="immidit Nurse App v1.0" colors={colors} />
         <InfoRow icon="server-outline" label="Pilot Area" value="Gurugram" colors={colors} />
         <InfoRow icon="shield-checkmark-outline" label="Data" value="Encrypted · Auditable" colors={colors} />
+      </View>
+
+      <View style={[styles.infoCard, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30', marginTop: 10 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <Ionicons name="warning" size={20} color={colors.destructive} />
+          <Text style={[styles.infoSectionTitle, { color: colors.destructive, marginBottom: 0 }]}>Emergency Contact</Text>
+        </View>
+        <Text style={{ fontFamily: 'Inter_400Regular', color: colors.foreground, fontSize: 13, marginBottom: 16 }}>
+          Tap the SOS button to immediately alert the dispatch center.
+        </Text>
+        <View style={styles.sosButton}>
+          <Ionicons name="call" size={18} color="#fff" />
+          <Text style={styles.sosButtonText}>SOS - CALL DISPATCH</Text>
+        </View>
       </View>
     </ScrollView>
   );
@@ -216,4 +230,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     fontSize: 13,
   },
+  sosButton: {
+    backgroundColor: '#DC2626',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 10,
+  },
+  sosButtonText: {
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
+    fontSize: 15,
+  }
 });
