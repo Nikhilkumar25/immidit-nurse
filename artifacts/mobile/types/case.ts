@@ -103,6 +103,7 @@ export interface NurseCase {
   patientAge: number;
   patientGender: Gender;
   address: string;
+  mapUrl?: string;
   chiefIssue: string;
   urgency: Urgency;
   supplies: Supply[];

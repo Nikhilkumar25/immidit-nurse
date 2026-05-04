@@ -180,7 +180,10 @@ export default function CaseScreen() {
               <Text style={[styles.addressText, { color: colors.mutedForeground }]}>{c.address}</Text>
               <TouchableOpacity 
                 style={[styles.navBtn, { backgroundColor: colors.primary + '15' }]}
-                onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}`)}
+                onPress={() => {
+                  const url = c.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}`;
+                  Linking.openURL(url);
+                }}
               >
                 <Ionicons name="navigate" size={12} color={colors.primary} />
                 <Text style={[styles.navBtnText, { color: colors.primary }]}>Navigate</Text>

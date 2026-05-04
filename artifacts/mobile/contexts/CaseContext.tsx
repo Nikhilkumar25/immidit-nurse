@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import { usePathname } from 'expo-router';
 import type {
@@ -46,6 +46,7 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<NurseProfile | null>(null);
   const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
   const [labs, setLabs] = useState<Lab[]>([]);
+  const notifiedCaseIds = useRef<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   const refreshCases = useCallback(async () => {
@@ -99,6 +100,9 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
       // This happens when the dev port changes (e.g. 8082 -> 3001)
       const sanitized = sanitizeCases(c, true);
       
+      // Seed notified IDs so we don't alert for existing cases on first load
+      sanitized.forEach(cs => notifiedCaseIds.current.add(cs.id));
+      
       setAllCases(sanitized);
       setProfile(p);
       setDoctors(d);
@@ -113,6 +117,26 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
 
     return () => clearInterval(interval);
   }, [refreshCases, pathname]);
+
+  useEffect(() => {
+    // Only alert for 'assigned' cases that haven't been notified before
+    const newlyAssigned = cases.filter(c => c.status === 'assigned' && !notifiedCaseIds.current.has(c.id));
+    
+    if (newlyAssigned.length > 0) {
+      newlyAssigned.forEach(c => notifiedCaseIds.current.add(c.id));
+      
+      if (Platform.OS !== 'web') {
+        const { Alert } = require('react-native');
+        Alert.alert(
+          "New Assignment",
+          `You have been assigned a new case for ${newlyAssigned[0].patientName}.`,
+          [{ text: "View Cases" }]
+        );
+      } else {
+        console.log("New Case Assigned (Web):", newlyAssigned[0].id);
+      }
+    }
+  }, [cases]);
 
   const getCurrentLocation = async () => {
     try {
