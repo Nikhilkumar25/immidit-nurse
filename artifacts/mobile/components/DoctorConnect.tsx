@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, Linking } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
@@ -9,15 +9,19 @@ import type { DoctorConsultation, DoctorProfile } from '@/types/case';
 interface Props {
   existing?: DoctorConsultation;
   onSave: (data: DoctorConsultation) => void;
+  onCall?: (doctorName: string) => void;
 }
 
 const SPECIALTIES = ['General Physician', 'Cardiologist', 'Paediatrician', 'Gynaecologist'];
 
-export function DoctorConnect({ existing, onSave }: Props) {
+import { VirtualCallOverlay } from './VirtualCallOverlay';
+
+export function DoctorConnect({ existing, onSave, onCall }: Props) {
   const colors = useColors();
   const { doctors } = useCases();
   const [selectedSpecialty, setSelectedSpecialty] = useState('');
   const [calling, setCalling] = useState(false);
+  const [showVirtualCall, setShowVirtualCall] = useState(false);
   const [calledDoctor, setCalledDoctor] = useState<string | null>(existing?.doctorName ?? null);
   const [instructions, setInstructions] = useState(existing?.instructions ?? '');
   const [callDuration, setCallDuration] = useState(existing?.callDuration ?? '');
@@ -29,9 +33,14 @@ export function DoctorConnect({ existing, onSave }: Props) {
 
   const handleCall = async (doctorName: string, specialty: string) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setCalling(true);
     setCalledDoctor(doctorName);
-    setTimeout(() => setCalling(false), 2000);
+    setShowVirtualCall(true);
+    if (onCall) onCall(doctorName);
+  };
+
+  const handleEndCall = (durationMins: number) => {
+    setShowVirtualCall(false);
+    setCallDuration(String(durationMins));
   };
 
   const handleSave = async () => {
@@ -157,6 +166,14 @@ export function DoctorConnect({ existing, onSave }: Props) {
           </Text>
         </TouchableOpacity>
       )}
+
+      <VirtualCallOverlay 
+        isVisible={showVirtualCall}
+        doctorName={calledDoctor || ''}
+        doctorId={doctors.find(d => d.name === calledDoctor)?.id || ''}
+        specialty={doctors.find(d => d.name === calledDoctor)?.specialty || ''}
+        onEnd={handleEndCall}
+      />
     </View>
   );
 }

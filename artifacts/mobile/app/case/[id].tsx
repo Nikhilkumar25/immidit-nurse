@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Platform, Linking,
+  TextInput, Platform, Linking, Image, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, Stack } from 'expo-router';
@@ -18,7 +18,7 @@ import { OrderLineItem } from '@/components/OrderLineItem';
 import { VitalsForm } from '@/components/VitalsForm';
 import { UrgencyBadge } from '@/components/UrgencyBadge';
 import { formatTime, formatDate } from '@/utils/storage';
-import type { Vitals, PhaseNumber, LabDropoff } from '@/types/case';
+import type { Vitals, PhaseNumber, LabDropoff, Lab } from '@/types/case';
 
 const EMPTY_VITALS: Vitals = { bp: '', pr: '', spo2: '', temp: '', rr: '', gcs: '' };
 
@@ -37,6 +37,7 @@ export default function CaseScreen() {
     setConsentPhoto, setDeviceReadingPhoto,
     saveDoctorConsult, addProcedurePhoto, addSamplePhoto,
     saveLabDropoff, closeCase, confirmSupply, advancePhase, updateOrderLine,
+    setSampleCollectionTime,
   } = useCases();
 
   const c = getCaseById(id ?? '');
@@ -120,7 +121,11 @@ export default function CaseScreen() {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     closeCase(c.id, outcome as any, notes, exitVitals);
     setCloseConfirming(false);
-    router.back();
+    
+    // If lab dropoff is required but not yet done, stay on screen. Otherwise, go back.
+    if (!c.labDropoffIntent || c.labDropoff) {
+      router.back();
+    }
   };
 
   const handleAdvanceProcedure = async () => {
@@ -381,7 +386,11 @@ export default function CaseScreen() {
 
             <DoctorConnect
               existing={c.doctorConsultation}
-              onSave={data => saveDoctorConsult(c.id, data)}
+              onCall={() => updateCase(c.id, { consultationRequested: true })}
+              onSave={(data) => {
+                saveDoctorConsult(c.id, data);
+                updateCase(c.id, { consultationRequested: false });
+              }}
             />
           </PhaseCard>
 
@@ -408,17 +417,29 @@ export default function CaseScreen() {
 
             <View style={[styles.divider, { borderColor: colors.border, marginTop: 12 }]} />
             
-            <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Procedure Photos</Text>
-            {c.procedurePhotos.map((uri, i) => (
-              <PhotoCapture key={i} label={`Procedure Photo ${i + 1}`} uri={uri} onCapture={() => {}} disabled />
-            ))}
+            {phase >= 5 && (
+              <View style={{ gap: 10, marginTop: 12 }}>
+                <PhotoCapture
+                  label="Sample Collection Vials"
+                  subtitle="Capture all sample vials collected. (Multiple photos allowed)"
+                  uris={c.samplePhotos}
+                  onCapture={(uri) => {
+                    addSamplePhoto(c.id, uri);
+                    if (!c.sampleCollectionTime) {
+                      setSampleCollectionTime(c.id, new Date().toISOString());
+                    }
+                  }}
+                  disabled={isClosed}
+                />
 
-            {phase === 5 && (
-              <PhotoCapture
-                label={`Add Procedure Photo ${c.procedurePhotos.length + 1}`}
-                subtitle="Consumables, dressing, vaccination, IV line, or sample collection."
-                onCapture={uri => addProcedurePhoto(c.id, uri)}
-              />
+                <PhotoCapture
+                  label="Procedure & Site Photos"
+                  subtitle="Dressing change, IV site, or procedure steps."
+                  uris={c.procedurePhotos}
+                  onCapture={uri => addProcedurePhoto(c.id, uri)}
+                  disabled={isClosed}
+                />
+              </View>
             )}
 
             {phase === 5 && (c.orderLines || []).every(l => l.status !== 'pending') && (
@@ -426,8 +447,8 @@ export default function CaseScreen() {
                 style={[styles.primaryBtn, { backgroundColor: colors.primary, marginTop: 12 }]}
                 onPress={handleAdvanceProcedure}
               >
-                <Ionicons name="arrow-forward-circle-outline" size={18} color="#fff" />
-                <Text style={styles.primaryBtnText}>Continue to Discharge</Text>
+                <Ionicons name="arrow-forward-circle-outline" size={18} color={colors.primaryForeground} />
+                <Text style={[styles.primaryBtnText, { color: colors.primaryForeground }]}>Continue to Discharge</Text>
               </TouchableOpacity>
             )}
           </PhaseCard>
@@ -455,68 +476,6 @@ export default function CaseScreen() {
                   onChange={handleVitalsUpdate}
                   disabled={phase !== 6}
                 />
-
-                {/* Lab Dropoff */}
-                <View style={[styles.labSection, { borderTopColor: colors.border }]}>
-                  <View style={styles.labHeaderRow}>
-                    <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Lab Sample Dropoff</Text>
-                    <Text style={[styles.optionalTag, { color: colors.mutedForeground }]}>Optional</Text>
-                  </View>
-
-                  {labSaved && c.labDropoff ? (
-                    <View style={[styles.labConfirmed, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-                      <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
-                      <View style={styles.labConfirmedInfo}>
-                        <Text style={[styles.labConfirmedName, { color: '#15803D' }]}>{c.labDropoff.labName}</Text>
-                        <Text style={[styles.labConfirmedMeta, { color: '#16A34A' }]}>
-                          {formatTime(c.labDropoff.dropoffTime)}
-                          {c.labDropoff.sampleCount ? ` · ${c.labDropoff.sampleCount} sample(s)` : ''}
-                          {c.labDropoff.sealNumber ? ` · Seal #${c.labDropoff.sealNumber}` : ''}
-                        </Text>
-                      </View>
-                    </View>
-                  ) : (
-                    <View style={[styles.labForm, { borderColor: colors.border, backgroundColor: colors.muted }]}>
-                      <TextInput
-                        style={[styles.labInput, { borderBottomColor: colors.border, color: colors.foreground }]}
-                        placeholder="Lab name (e.g. SRL Diagnostics)"
-                        placeholderTextColor={colors.mutedForeground}
-                        value={labName}
-                        onChangeText={v => { setLabName(v); if (labError) setLabError(''); }}
-                      />
-                      <View style={styles.labRow}>
-                        <TextInput
-                          style={[styles.labInputHalf, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card }]}
-                          placeholder="No. of samples"
-                          placeholderTextColor={colors.mutedForeground}
-                          value={labSampleCount}
-                          onChangeText={setLabSampleCount}
-                          keyboardType="number-pad"
-                        />
-                        <TextInput
-                          style={[styles.labInputHalf, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.card }]}
-                          placeholder="Bag seal number"
-                          placeholderTextColor={colors.mutedForeground}
-                          value={labSealNumber}
-                          onChangeText={setLabSealNumber}
-                        />
-                      </View>
-                      {!!labError && (
-                        <View style={styles.inlineError}>
-                          <Ionicons name="alert-circle-outline" size={14} color="#DC2626" />
-                          <Text style={styles.inlineErrorText}>{labError}</Text>
-                        </View>
-                      )}
-                      <TouchableOpacity
-                        style={[styles.labLogBtn, { backgroundColor: colors.primary }]}
-                        onPress={handleLogLabDropoff}
-                      >
-                        <Ionicons name="time-outline" size={16} color="#fff" />
-                        <Text style={styles.labLogBtnText}>Log Dropoff — Timestamp Now</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
 
                 {/* Visit Outcome */}
                 <Text style={[styles.sectionLabel, { color: colors.foreground, marginTop: 14 }]}>
@@ -593,9 +552,146 @@ export default function CaseScreen() {
             )}
           </PhaseCard>
 
+          {/* ── PHASE 7: Lab Dropoff (Optional/Conditional) ── */}
+          {c.labDropoffIntent && (
+            <PhaseCard
+              phaseNumber={7}
+              title="Lab Dropoff"
+              icon="flask-outline"
+              status={c.labDropoff ? 'completed' : (isClosed ? 'active' : 'locked')}
+              completedAt={c.labDropoff?.dropoffTime}
+            >
+              {c.labDropoff ? (
+                <View style={[styles.labSummary, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                  <Text style={[styles.labSummaryText, { color: colors.foreground }]}>
+                    Delivered to {c.labDropoff.labName} at {formatTime(c.labDropoff.dropoffTime)}
+                  </Text>
+                  <Text style={[styles.labSummaryDetail, { color: colors.mutedForeground }]}>
+                    Seal: {c.labDropoff.sealNumber} · Count: {c.labDropoff.sampleCount}
+                  </Text>
+                  {c.labDropoff.photoUri && (
+                    <Image source={{ uri: c.labDropoff.photoUri }} style={styles.labReceipt} />
+                  )}
+                </View>
+              ) : (
+                <LabDropoffForm
+                  onSave={(data) => {
+                    saveLabDropoff(c.id, data);
+                    router.back();
+                  }}
+                  colors={colors}
+                />
+              )}
+            </PhaseCard>
+          )}
+
         </ScrollView>
       </View>
     </>
+  );
+}
+
+function LabDropoffForm({ onSave, colors }: { onSave: (data: any) => void, colors: any }) {
+  const { labs } = useCases();
+  const [labName, setLabName] = useState('');
+  const [sampleCount, setSampleCount] = useState('');
+  const [sealNumber, setSealNumber] = useState('');
+  const [photoUri, setPhotoUri] = useState<string>();
+
+  const activeLabs = labs.filter(l => l.active);
+
+  const handleSave = () => {
+    if (!labName || !sampleCount || !photoUri) {
+      Alert.alert('Required Fields', 'Please enter Lab Name, Sample Count and take a photo of the receipt.');
+      return;
+    }
+    onSave({
+      labName,
+      sampleCount,
+      sealNumber,
+      photoUri,
+      dropoffTime: new Date().toISOString(),
+    });
+  };
+
+  return (
+    <View style={{ gap: 12 }}>
+      <View>
+        <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 6, color: colors.foreground }}>Select Laboratory Partner</Text>
+        {activeLabs.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+            {activeLabs.map(l => (
+              <TouchableOpacity 
+                key={l.id}
+                onPress={() => {
+                  setLabName(l.name);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                style={{ 
+                  paddingHorizontal: 12, 
+                  paddingVertical: 8, 
+                  borderRadius: 10, 
+                  backgroundColor: labName === l.name ? '#16A34A' : colors.muted,
+                  marginRight: 8,
+                  borderWidth: 1,
+                  borderColor: labName === l.name ? '#16A34A' : colors.border
+                }}
+              >
+                <Text style={{ 
+                  color: labName === l.name ? '#fff' : colors.foreground, 
+                  fontSize: 12, 
+                  fontFamily: labName === l.name ? 'Inter_700Bold' : 'Inter_500Medium' 
+                }}>{l.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : (
+          <Text style={{ fontSize: 11, color: colors.dim, marginBottom: 8, fontStyle: 'italic' }}>No master labs configured by admin.</Text>
+        )}
+        <TextInput
+          style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.muted }]}
+          placeholder="Or enter lab name manually..."
+          value={labName}
+          onChangeText={setLabName}
+        />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 4, color: colors.foreground }}>Sample Count</Text>
+          <TextInput
+            style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.muted }]}
+            placeholder="e.g. 2"
+            keyboardType="number-pad"
+            value={sampleCount}
+            onChangeText={setSampleCount}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, marginBottom: 4, color: colors.foreground }}>Seal Number</Text>
+          <TextInput
+            style={[styles.input, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.muted }]}
+            placeholder="Optional"
+            value={sealNumber}
+            onChangeText={setSealNumber}
+          />
+        </View>
+      </View>
+      
+      <PhotoCapture
+        label="Dropoff Receipt"
+        subtitle="Photograph the acknowledgment from the lab."
+        uri={photoUri}
+        onCapture={setPhotoUri}
+      />
+
+      <TouchableOpacity
+        style={[styles.primaryBtn, { backgroundColor: '#16A34A', marginTop: 8 }]}
+        onPress={handleSave}
+      >
+        <Ionicons name="cloud-upload-outline" size={18} color="#fff" />
+        <Text style={styles.primaryBtnText}>Confirm Dropoff</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -1056,8 +1152,36 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   confirmCloseText: {
-    fontFamily: 'Inter_700Bold',
     fontSize: 14,
     color: '#fff',
+  },
+  labSummary: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+  },
+  labSummaryText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+  },
+  labSummaryDetail: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+  },
+  labReceipt: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    minHeight: 44,
   },
 });

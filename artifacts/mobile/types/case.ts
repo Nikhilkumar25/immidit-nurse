@@ -28,16 +28,29 @@ export interface VaccineDetails {
   coldChainRequired: boolean;
 }
 
+export interface ABCDESurvey {
+  airway: 'Clear' | 'Obstructed' | 'Partial';
+  breathing: 'Normal' | 'Distressed' | 'Rapid' | 'Slow';
+  circulation: 'Normal' | 'Weak' | 'Absent';
+  disability: 'Alert' | 'Voice' | 'Pain' | 'Unresponsive';
+  exposure: string;
+}
+
 /**
- * PCRData — basics only, captured digitally.
- * The full clinical form is photographed as two pages.
+ * PCRData — captures full clinical flow.
  */
 export interface PCRData {
   contactNumber: string;
   emergencyContact: string;
   chiefComplaint: string;
+  abcde?: ABCDESurvey;
+  consumablesUsed?: string;
+  medicationsGiven?: string;
   formPage1Uri?: string;
   formPage2Uri?: string;
+  // Optional previous records
+  prevPrescriptionUri?: string;
+  prevMedicinePhotoUri?: string;
   visitOutcome: CaseOutcome;
   handoverNotes: string;
 }
@@ -47,6 +60,7 @@ export interface DoctorConsultation {
   specialty: string;
   callDuration: string;
   instructions: string;
+  voiceRecordingUri?: string;
 }
 
 export interface LabDropoff {
@@ -54,6 +68,7 @@ export interface LabDropoff {
   dropoffTime: string;
   sampleCount: string;
   sealNumber: string;
+  photoUri?: string;
 }
 
 export interface RefusalData {
@@ -98,12 +113,18 @@ export interface NurseCase {
   createdAt: string;
   departureTime?: string;
   arrivalTime?: string;
+  pcrCompletedTime?: string;
+  doctorConsultTime?: string;
   closeTime?: string;
   gpsCoordinates?: { lat: number; lng: number };
   consentFormPhotoUri?: string;
   deviceReadingPhotoUri?: string;
   pcrCompleted: boolean;
   pcrData?: PCRData;
+  consultationRequested?: boolean;
+  sampleCollectionTime?: string;
+  labDropoffIntent?: boolean;
+  linkedPrescriptionId?: string;
   doctorConsultation?: DoctorConsultation;
   procedurePhotos: string[];
   samplePhotos: string[];
@@ -114,7 +135,6 @@ export interface NurseCase {
   caseOutcome?: CaseOutcome;
   nurseNotes?: string;
   orderLines: OrderLine[];
-  linkedPrescriptionId?: string;
   updatedAt: string;
 }
 
@@ -134,6 +154,14 @@ export interface DoctorProfile {
   specialty: string;
   isOnline: boolean;
   experience: string;
+  phone?: string;
   qualification?: string;
   regId?: string;
+}
+
+export interface Lab {
+  id: string;
+  name: string;
+  address: string;
+  active: boolean;
 }

@@ -9,11 +9,12 @@ interface Props {
   label: string;
   subtitle?: string;
   uri?: string;
+  uris?: string[]; // New for multiple
   onCapture: (uri: string) => void;
   disabled?: boolean;
 }
 
-export function PhotoCapture({ label, subtitle, uri, onCapture, disabled }: Props) {
+export function PhotoCapture({ label, subtitle, uri, uris, onCapture, disabled }: Props) {
   const colors = useColors();
   const [status, requestPermission] = ImagePicker.useCameraPermissions();
 
@@ -43,7 +44,7 @@ export function PhotoCapture({ label, subtitle, uri, onCapture, disabled }: Prop
 
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.85,
+      quality: 0.7,
       allowsEditing: false,
       exif: true,
     });
@@ -53,52 +54,73 @@ export function PhotoCapture({ label, subtitle, uri, onCapture, disabled }: Prop
     }
   };
 
-  const hasPhoto = !!uri;
+  const currentUris = uris || (uri ? [uri] : []);
+  const hasPhotos = currentUris.length > 0;
 
   return (
     <View style={styles.wrapper}>
       <View style={styles.labelRow}>
         <Text style={[styles.label, { color: colors.foreground }]}>{label}</Text>
-        {hasPhoto && <Ionicons name="checkmark-circle" size={16} color="#16A34A" />}
+        {hasPhotos && <Ionicons name="checkmark-circle" size={16} color="#16A34A" />}
       </View>
       {subtitle && (
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
       )}
 
-      <TouchableOpacity
-        style={[
-          styles.captureArea,
-          {
-            borderColor: hasPhoto ? '#16A34A' : colors.border,
-            backgroundColor: hasPhoto ? '#F0FDF4' : colors.muted,
-          },
-        ]}
-        onPress={handleCapture}
-        activeOpacity={0.75}
-        disabled={disabled}
-      >
-        {hasPhoto ? (
-          <View style={styles.previewContainer}>
-            <Image source={{ uri }} style={styles.preview} resizeMode="cover" />
-            <TouchableOpacity style={styles.retakeBtn} onPress={handleCapture}>
-              <Ionicons name="refresh" size={14} color="#fff" />
-              <Text style={styles.retakeText}>Retake</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.placeholder}>
-            <View style={[styles.iconCircle, { backgroundColor: colors.primary + '20' }]}>
-              <Ionicons name="camera-outline" size={28} color={disabled ? colors.border : colors.primary} />
+      {hasPhotos && (
+        <View style={styles.thumbnailList}>
+          {currentUris.map((u, i) => (
+            <View key={i} style={[styles.thumbWrapper, { borderColor: colors.border }]}>
+              <Image source={{ uri: u }} style={styles.thumbnail} />
             </View>
-            <Text style={[styles.captureLabel, { color: disabled ? colors.border : colors.primary }]}>
-              {Platform.OS === 'web' ? 'Upload Photo' : 'Take Photo'}
-            </Text>
-            <Text style={[styles.captureHint, { color: colors.mutedForeground }]}>
-              {Platform.OS === 'web' ? 'Select from device' : 'Camera only — no gallery'}
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
+          ))}
+          {!disabled && uris && (
+            <TouchableOpacity 
+              style={[styles.addMoreThumb, { backgroundColor: colors.primary + '10', borderColor: colors.primary }]}
+              onPress={handleCapture}
+            >
+              <Ionicons name="add" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {!uris || !hasPhotos ? (
+        <TouchableOpacity
+          style={[
+            styles.captureArea,
+            {
+              borderColor: hasPhotos ? '#16A34A' : colors.border,
+              backgroundColor: hasPhotos ? '#F0FDF4' : colors.muted,
+            },
+          ]}
+          onPress={handleCapture}
+          activeOpacity={0.75}
+          disabled={disabled}
+        >
+          {hasPhotos ? (
+            <View style={styles.previewContainer}>
+              <Image source={{ uri: currentUris[0] }} style={styles.preview} resizeMode="cover" />
+              <TouchableOpacity style={styles.retakeBtn} onPress={handleCapture}>
+                <Ionicons name="refresh" size={14} color="#fff" />
+                <Text style={styles.retakeText}>Retake</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.placeholder}>
+              <View style={[styles.iconCircle, { backgroundColor: colors.primary + '20' }]}>
+                <Ionicons name="camera-outline" size={28} color={disabled ? colors.border : colors.primary} />
+              </View>
+              <Text style={[styles.captureLabel, { color: disabled ? colors.border : colors.primary }]}>
+                {Platform.OS === 'web' ? 'Upload Photo' : 'Take Photo'}
+              </Text>
+              <Text style={[styles.captureHint, { color: colors.mutedForeground }]}>
+                {Platform.OS === 'web' ? 'Select from device' : 'Camera only — no gallery'}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -157,6 +179,32 @@ const styles = StyleSheet.create({
   preview: {
     width: '100%',
     height: 160,
+  },
+  thumbnailList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  thumbWrapper: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  addMoreThumb: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   retakeBtn: {
     position: 'absolute',

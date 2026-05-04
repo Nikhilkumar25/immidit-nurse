@@ -24,6 +24,11 @@ export default function CasesScreen() {
     [cases]
   );
 
+  const pendingDropoffs = useMemo(
+    () => cases.filter(c => c.labDropoffIntent && !c.labDropoff),
+    [cases]
+  );
+
   const urgentCount = activeCases.filter(c => c.urgency === 'Urgent').length;
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -78,6 +83,26 @@ export default function CasesScreen() {
                   {urgentCount} urgent {urgentCount === 1 ? 'case' : 'cases'} require immediate attention
                 </Text>
               </View>
+            )}
+
+            {pendingDropoffs.length > 0 && (
+              <TouchableOpacity 
+                style={[styles.dropoffBanner, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+                onPress={() => router.push(`/case/${pendingDropoffs[0].id}`)} // Link to the first one for now or a list
+              >
+                <View style={styles.dropoffIcon}>
+                  <Ionicons name="flask" size={18} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.dropoffTitle, { color: '#15803D' }]}>
+                    {pendingDropoffs.length} Lab {pendingDropoffs.length === 1 ? 'Dropoff' : 'Dropoffs'} Pending
+                  </Text>
+                  <Text style={[styles.dropoffSubtitle, { color: '#166534' }]}>
+                    Deliver samples to lab and record dropoff details.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#16A34A" />
+              </TouchableOpacity>
             )}
 
             <View style={styles.sectionHeader}>
@@ -162,6 +187,33 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     fontSize: 13,
     flex: 1,
+  },
+  dropoffBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  dropoffIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(22, 163, 74, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropoffTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  dropoffSubtitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 16,
   },
   sectionHeader: {
     flexDirection: 'row',

@@ -11,6 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { useCases } from '@/contexts/CaseContext';
+import { useColors } from '@/hooks/useColors';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
@@ -21,6 +22,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const { login } = useCases();
   const router = useRouter();
+  const colors = useColors();
 
   const handleLogin = async () => {
     if (!nurseId || !passcode) {
@@ -48,23 +50,26 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <StatusBar style="dark" />
       <View style={styles.inner}>
         <View style={styles.header}>
-          <View style={styles.logoPlaceholder}>
-            <Text style={styles.logoText}>I</Text>
-          </View>
-          <Text style={styles.title}>immidit Nurse</Text>
-          <Text style={styles.subtitle}>Field Operations Portal</Text>
+          <Image 
+            source={require('@/assets/images/logo.png')} 
+            style={styles.logoImage} 
+            resizeMode="contain" 
+          />
+          <Text style={[styles.title, { color: colors.text }]}>immidit Nurse</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Field Operations Portal</Text>
         </View>
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Nurse ID</Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>Nurse ID</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+              placeholderTextColor={colors.mutedForeground}
               placeholder="e.g. N-001"
               value={nurseId}
               onChangeText={setNurseId}
@@ -74,9 +79,10 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Passcode</Text>
+            <Text style={[styles.label, { color: colors.foreground }]}>Passcode</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+              placeholderTextColor={colors.mutedForeground}
               placeholder="Enter your secret passcode"
               value={passcode}
               onChangeText={setPasscode}
@@ -84,24 +90,24 @@ export default function LoginScreen() {
             />
           </View>
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text> : null}
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[styles.button, { backgroundColor: colors.primary }, loading && { opacity: 0.7 }]}
             onPress={handleLogin}
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.primaryForeground} />
             ) : (
-              <Text style={styles.buttonText}>Login to Dashboard</Text>
+              <Text style={[styles.buttonText, { color: colors.primaryForeground }]}>Login to Dashboard</Text>
             )}
           </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Secure Clinical Access</Text>
-          <Text style={styles.versionText}>v1.2.0-prod</Text>
+          <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Secure Clinical Access</Text>
+          <Text style={[styles.versionText, { color: colors.mutedForeground, opacity: 0.5 }]}>v1.2.0-prod</Text>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -111,7 +117,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   inner: {
     flex: 1,
@@ -122,28 +127,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 48,
   },
-  logoPlaceholder: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+  logoImage: {
+    width: 200,
+    height: 80,
     marginBottom: 16,
-  },
-  logoText: {
-    color: '#fff',
-    fontSize: 32,
-    fontWeight: 'bold',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1a1a1a',
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
     marginTop: 4,
   },
   form: {
@@ -155,34 +149,25 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#444',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#f5f5f5',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#e5e5e5',
   },
   button: {
-    backgroundColor: '#007AFF',
     borderRadius: 12,
     padding: 18,
     alignItems: 'center',
     marginTop: 12,
   },
-  buttonDisabled: {
-    backgroundColor: '#99ccff',
-  },
   buttonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
   errorText: {
-    color: '#ff3b30',
     fontSize: 14,
     marginBottom: 16,
     textAlign: 'center',

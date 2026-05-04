@@ -17,10 +17,14 @@ import type { PCRData, CaseOutcome } from '@/types/case';
 function emptyPCR(chiefIssue: string): PCRData {
   return {
     contactNumber: '',
-    emergencyContact: '',
     chiefComplaint: chiefIssue,
-    formPage1Uri: undefined,
-    formPage2Uri: undefined,
+    abcde: {
+      airway: 'Clear',
+      breathing: 'Normal',
+      circulation: 'Normal',
+      disability: 'Alert',
+      exposure: '',
+    },
     visitOutcome: 'completed',
     handoverNotes: '',
   };
@@ -129,28 +133,86 @@ export default function PCRScreen() {
           <SectionHeader label="Basic Patient Details" colors={colors} />
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <FieldRow
-              label="Contact Number"
-              value={pcr.contactNumber}
-              onChange={v => update('contactNumber', v)}
-              placeholder="+91 XXXXX XXXXX"
-              keyboardType="phone-pad"
-              colors={colors}
-              first
-            />
-            <FieldRow
-              label="Emergency Contact"
-              value={pcr.emergencyContact}
-              onChange={v => update('emergencyContact', v)}
-              placeholder="Name & phone number"
-              colors={colors}
-            />
-            <FieldRow
               label="Chief Complaint"
               value={pcr.chiefComplaint}
               onChange={v => update('chiefComplaint', v)}
               placeholder="Patient's primary complaint"
               multiline
               colors={colors}
+              first
+            />
+          </View>
+
+          {/* Section: ABCDE Assessment */}
+          <SectionHeader label="ABCDE Assessment" colors={colors} />
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <ABCDEGroup
+              label="Airway"
+              value={pcr.abcde?.airway ?? 'Clear'}
+              options={['Clear', 'Partial', 'Obstructed']}
+              onSelect={v => update('abcde', { ...pcr.abcde!, airway: v as any })}
+              colors={colors}
+              first
+            />
+            <ABCDEGroup
+              label="Breathing"
+              value={pcr.abcde?.breathing ?? 'Normal'}
+              options={['Normal', 'Distressed', 'Rapid', 'Slow']}
+              onSelect={v => update('abcde', { ...pcr.abcde!, breathing: v as any })}
+              colors={colors}
+            />
+            <ABCDEGroup
+              label="Circulation"
+              value={pcr.abcde?.circulation ?? 'Normal'}
+              options={['Normal', 'Weak', 'Absent']}
+              onSelect={v => update('abcde', { ...pcr.abcde!, circulation: v as any })}
+              colors={colors}
+            />
+            <ABCDEGroup
+              label="Disability"
+              value={pcr.abcde?.disability ?? 'Alert'}
+              options={['Alert', 'Voice', 'Pain', 'Unresponsive']}
+              onSelect={v => update('abcde', { ...pcr.abcde!, disability: v as any })}
+              colors={colors}
+            />
+            <FieldRow
+              label="Exposure / Skin"
+              value={pcr.abcde?.exposure ?? ''}
+              onChange={v => update('abcde', { ...pcr.abcde!, exposure: v })}
+              placeholder="Temp, skin findings, wounds..."
+              colors={colors}
+            />
+          </View>
+
+          {/* Section: Interventions */}
+          <SectionHeader label="Clinical Interventions" colors={colors} />
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <FieldRow
+              label="Interventions"
+              value={pcr.handoverNotes ?? ''}
+              onChange={v => update('handoverNotes', v)}
+              placeholder="e.g. PCM 650mg, IV Cannula (20G) used..."
+              multiline
+              colors={colors}
+              first
+            />
+          </View>
+
+          {/* Section: External Records (Optional) */}
+          <SectionHeader label="Previous Records (Optional)" colors={colors} />
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 12, marginBottom: 16 }]}>
+            <PhotoCapture
+              label="Previous Prescription"
+              subtitle="Photo of old prescription / hospital discharge papers"
+              uri={pcr.prevPrescriptionUri}
+              onCapture={v => update('prevPrescriptionUri', v)}
+            />
+            <View style={{ height: 12 }} />
+            <PhotoCapture
+              label="Previous Medications"
+              subtitle="Photo of currently used medicine strips / bottles"
+              uri={pcr.prevMedicinePhotoUri}
+              onCapture={v => update('prevMedicinePhotoUri', v)}
             />
           </View>
 
@@ -300,6 +362,53 @@ function FieldRow({
         multiline={multiline}
         textAlignVertical={multiline ? 'top' : 'center'}
       />
+    </View>
+  );
+}
+
+function ABCDEGroup({
+  label, value, options, onSelect, colors, first,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onSelect: (v: string) => void;
+  colors: any;
+  first?: boolean;
+}) {
+  return (
+    <View style={[
+      styles.fieldBlock,
+      { borderTopColor: colors.border, borderTopWidth: first ? 0 : StyleSheet.hairlineWidth },
+    ]}>
+      <Text style={[styles.fieldLabel, { color: colors.mutedForeground, marginBottom: 8 }]}>{label}</Text>
+      <View style={styles.outcomeRow}>
+        {options.map(o => (
+          <TouchableOpacity
+            key={o}
+            style={[
+              styles.outcomeChip,
+              {
+                backgroundColor: value === o ? colors.primary : colors.muted,
+                borderColor: value === o ? colors.primary : colors.border,
+                flex: 1,
+              },
+            ]}
+            onPress={() => onSelect(o)}
+          >
+            <Text
+              style={[
+                styles.outcomeText,
+                { color: value === o ? '#fff' : colors.foreground, fontSize: 11 },
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {o}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   );
 }

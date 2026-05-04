@@ -201,11 +201,25 @@ export async function loadDoctors(): Promise<DoctorProfile[]> {
       specialty: d.profile?.specialty || 'General Physician',
       isOnline: !!d.active,
       experience: d.profile?.experience || '0',
+      phone: d.profile?.phone || '',
       qualification: d.profile?.qualification || '',
       regId: d.profile?.regId || '',
     }));
   } catch (error) {
     console.error('Failed to load doctors:', error);
+    return [];
+  }
+}
+
+export async function loadLabs(): Promise<any[]> {
+  try {
+    const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
+    if (!apiUrl) return [];
+    const res = await fetch(`${apiUrl}?action=pull`);
+    const data = await res.json();
+    return (data.labs || []) as any[];
+  } catch (error) {
+    console.error('Failed to load labs:', error);
     return [];
   }
 }
@@ -233,6 +247,47 @@ export async function loadCases(): Promise<NurseCase[]> {
   } catch (error) {
     console.error('Failed to load cases from Sheets API:', error);
     return [];
+  }
+}
+
+export async function uploadMedia(uri: string, name: string, type: string): Promise<string> {
+  try {
+    const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
+    if (!apiUrl) throw new Error('API URL missing');
+
+    // On mobile, we need to fetch the file to get its content
+    // On web, uri might already be base64 or a blob url
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        try {
+          const res = await fetch(apiUrl, {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'uploadReport', // Using the existing action in Code.gs
+              data: { base64, name, type }
+            }),
+          });
+          const cloudData = await res.json();
+          if (cloudData.url) {
+            resolve(cloudData.url);
+          } else {
+            reject(new Error(cloudData.error || 'Upload failed'));
+          }
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Media upload failed:', error);
+    return uri; // Fallback to local URI
   }
 }
 

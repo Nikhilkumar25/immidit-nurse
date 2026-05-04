@@ -1,17 +1,19 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { Platform } from 'react-native';
 import { usePathname } from 'expo-router';
 import type {
   NurseCase, NurseProfile, PCRData, DoctorConsultation,
   Vitals, LabDropoff, PhaseNumber, RefusalData, DoctorProfile,
-  OrderLineStatus,
+  OrderLineStatus, Lab,
 } from '@/types/case';
 import * as Location from 'expo-location';
-import { loadCases, saveCases, loadProfile } from '@/utils/storage';
+import { loadCases, saveCases, loadProfile, uploadMedia } from '@/utils/storage';
 
 interface CaseContextValue {
   cases: NurseCase[];
   profile: NurseProfile | null;
   doctors: DoctorProfile[];
+  labs: Lab[];
   loading: boolean;
   getCaseById: (id: string) => NurseCase | undefined;
   updateCase: (id: string, updates: Partial<NurseCase>) => void;
@@ -27,6 +29,7 @@ interface CaseContextValue {
   saveLabDropoff: (id: string, dropoff: LabDropoff) => void;
   closeCase: (id: string, outcome: NurseCase['caseOutcome'], notes: string, exitVitals?: Vitals) => void;
   refuseCase: (id: string, data: RefusalData) => void;
+  setSampleCollectionTime: (id: string, time: string) => void;
   confirmSupply: (caseId: string, supplyId: string, confirmed: boolean) => void;
   updateOrderLine: (caseId: string, lineId: string, status: OrderLineStatus, photoUri?: string) => void;
   advancePhase: (id: string, phase: PhaseNumber) => void;
@@ -42,13 +45,15 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
   const [allCases, setAllCases] = useState<NurseCase[]>([]);
   const [profile, setProfile] = useState<NurseProfile | null>(null);
   const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
+  const [labs, setLabs] = useState<Lab[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refreshCases = useCallback(async () => {
     try {
-      const { loadCases: fetchCases, loadDoctors: fetchDoctors } = await import('@/utils/storage');
-      const [cloudCases, d] = await Promise.all([fetchCases(), fetchDoctors()]);
+      const { loadCases: fetchCases, loadDoctors: fetchDoctors, loadLabs: fetchLabs } = await import('@/utils/storage');
+      const [cloudCases, d, l] = await Promise.all([fetchCases(), fetchDoctors(), fetchLabs()]);
       
+      setLabs(l);
       setAllCases(prev => {
         // Atomic Merging: Use all unique IDs to ensure we capture both local updates and new cloud assignments
         const allIds = Array.from(new Set([...prev.map(c => c.id), ...cloudCases.map(c => c.id)]));
@@ -68,9 +73,11 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
           return cloudTime > localTime ? cloud : local;
         });
 
+        const sanitized = sanitizeCases(merged, false);
+
         // Optimization: Avoid state trigger if nothing changed
-        if (JSON.stringify(prev) === JSON.stringify(merged)) return prev;
-        return merged;
+        if (JSON.stringify(prev) === JSON.stringify(sanitized)) return prev;
+        return sanitized;
       });
       
       setDoctors(prev => {
@@ -84,9 +91,15 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function init() {
-      const { loadCases: fetchCases, loadProfile: fetchProfile, loadDoctors: fetchDoctors } = await import('@/utils/storage');
-      const [c, p, d] = await Promise.all([fetchCases(), fetchProfile(), fetchDoctors()]);
-      setAllCases(c);
+      const { loadCases: fetchCases, loadProfile: fetchProfile, loadDoctors: fetchDoctors, loadLabs: fetchLabs } = await import('@/utils/storage');
+      const [c, p, d, l] = await Promise.all([fetchCases(), fetchProfile(), fetchDoctors(), fetchLabs()]);
+      
+      setLabs(l);
+      // Sanitize cases: If we are on web, and we have blob URIs from a different origin, clear them
+      // This happens when the dev port changes (e.g. 8082 -> 3001)
+      const sanitized = sanitizeCases(c, true);
+      
+      setAllCases(sanitized);
       setProfile(p);
       setDoctors(d);
       setLoading(false);
@@ -101,31 +114,36 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [refreshCases, pathname]);
 
-  const updateCase = useCallback(async (id: string, updates: Partial<NurseCase>) => {
-    let locUpdate = {};
+  const getCurrentLocation = async () => {
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status === 'granted') {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        locUpdate = {
-          lastUpdatedLocation: {
-            lat: loc.coords.latitude,
-            lng: loc.coords.longitude,
-            timestamp: new Date().toISOString(),
-          },
+        return {
+          lat: loc.coords.latitude,
+          lng: loc.coords.longitude,
+          timestamp: new Date().toISOString(),
         };
       }
     } catch (e) {
-      console.warn('GPS tracking failed during update:', e);
+      console.warn('GPS tracking failed:', e);
     }
+    return null;
+  };
 
+  const updateCase = useCallback(async (id: string, updates: Partial<NurseCase>) => {
+    const locUpdate = await getCurrentLocation();
+    
     setAllCases(prev => {
       const now = new Date().toISOString();
-      const next = prev.map(c => c.id === id ? { ...c, ...updates, ...locUpdate, updatedAt: now } : c);
+      const next = prev.map(c => c.id === id ? { 
+        ...c, 
+        ...updates, 
+        lastUpdatedLocation: locUpdate || c.lastUpdatedLocation,
+        updatedAt: now 
+      } : c);
       
-      // Fast Path: Save to local disk immediately to survive camera/restarts
       import('@/utils/storage').then(m => m.saveCases(next));
-      
       return next;
     });
   }, []);
@@ -166,37 +184,106 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
   const setConsentPhoto = useCallback(async (id: string, uri: string) => {
     const c = cases.find(x => x.id === id);
     if (!c) return;
+    
+    // 1. Instant local update
     const updates: Partial<NurseCase> = { consentFormPhotoUri: uri };
     if (!!c.deviceReadingPhotoUri) { updates.currentPhase = 4; updates.status = 'in_progress'; }
     await updateCase(id, updates);
+
+    // 2. Background cloud upload
+    import('@/utils/storage').then(async m => {
+      const cloudUrl = await m.uploadMedia(uri, `consent_${id}.jpg`, 'image/jpeg');
+      updateCase(id, { consentFormPhotoUri: cloudUrl });
+    });
   }, [cases, updateCase]);
 
   const setDeviceReadingPhoto = useCallback(async (id: string, uri: string) => {
     const c = cases.find(x => x.id === id);
     if (!c) return;
+
     const updates: Partial<NurseCase> = { deviceReadingPhotoUri: uri };
     if (!!c.consentFormPhotoUri) { updates.currentPhase = 4; updates.status = 'in_progress'; }
     await updateCase(id, updates);
+
+    import('@/utils/storage').then(async m => {
+      const cloudUrl = await m.uploadMedia(uri, `reading_${id}.jpg`, 'image/jpeg');
+      updateCase(id, { deviceReadingPhotoUri: cloudUrl });
+    });
   }, [cases, updateCase]);
 
   const savePCR = useCallback((id: string, data: PCRData) => {
-    updateCase(id, { pcrCompleted: true, pcrData: data, currentPhase: 5 });
+    updateCase(id, { pcrCompleted: true, pcrData: data, pcrCompletedTime: new Date().toISOString(), currentPhase: 5 });
+    
+    // Background upload PCR photos if they are local
+    import('@/utils/storage').then(async m => {
+      const uploads: Partial<PCRData> = {};
+      if (data.formPage1Uri?.startsWith('file://') || data.formPage1Uri?.startsWith('blob:')) {
+        uploads.formPage1Uri = await m.uploadMedia(data.formPage1Uri, `pcr1_${id}.jpg`, 'image/jpeg');
+      }
+      if (data.formPage2Uri?.startsWith('file://') || data.formPage2Uri?.startsWith('blob:')) {
+        uploads.formPage2Uri = await m.uploadMedia(data.formPage2Uri, `pcr2_${id}.jpg`, 'image/jpeg');
+      }
+      if (data.prevPrescriptionUri?.startsWith('file://')) {
+        uploads.prevPrescriptionUri = await m.uploadMedia(data.prevPrescriptionUri, `prev_rx_${id}.jpg`, 'image/jpeg');
+      }
+      if (data.prevMedicinePhotoUri?.startsWith('file://')) {
+        uploads.prevMedicinePhotoUri = await m.uploadMedia(data.prevMedicinePhotoUri, `prev_med_${id}.jpg`, 'image/jpeg');
+      }
+      if (Object.keys(uploads).length > 0) {
+        updateCase(id, { pcrData: { ...data, ...uploads } });
+      }
+    });
   }, [updateCase]);
 
   const saveDoctorConsult = useCallback((id: string, data: DoctorConsultation) => {
-    updateCase(id, { doctorConsultation: data });
+    updateCase(id, { doctorConsultation: data, doctorConsultTime: new Date().toISOString() });
+    
+    // Background upload voice recording
+    if (data.voiceRecordingUri?.startsWith('file://') || data.voiceRecordingUri?.startsWith('blob:')) {
+      import('@/utils/storage').then(async m => {
+        const cloudUrl = await m.uploadMedia(data.voiceRecordingUri!, `voice_${id}.m4a`, 'audio/m4a');
+        updateCase(id, { doctorConsultation: { ...data, voiceRecordingUri: cloudUrl } });
+      });
+    }
   }, [updateCase]);
 
   const addProcedurePhoto = useCallback(async (id: string, uri: string) => {
     const c = cases.find(x => x.id === id);
     if (!c) return;
-    await updateCase(id, { procedurePhotos: [...c.procedurePhotos, uri] });
+    
+    const newPhotos = [...c.procedurePhotos, uri];
+    await updateCase(id, { procedurePhotos: newPhotos });
+
+    import('@/utils/storage').then(async m => {
+      const cloudUrl = await m.uploadMedia(uri, `proc_${id}_${Date.now()}.jpg`, 'image/jpeg');
+      // Find the case again to get latest photos list
+      setAllCases(prev => prev.map(item => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          procedurePhotos: item.procedurePhotos.map(p => p === uri ? cloudUrl : p)
+        };
+      }));
+    });
   }, [cases, updateCase]);
 
   const addSamplePhoto = useCallback(async (id: string, uri: string) => {
     const c = cases.find(x => x.id === id);
     if (!c) return;
-    await updateCase(id, { samplePhotos: [...c.samplePhotos, uri] });
+    
+    const newPhotos = [...(c.samplePhotos || []), uri];
+    await updateCase(id, { samplePhotos: newPhotos });
+
+    import('@/utils/storage').then(async m => {
+      const cloudUrl = await m.uploadMedia(uri, `sample_${id}_${Date.now()}.jpg`, 'image/jpeg');
+      setAllCases(prev => prev.map(item => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          samplePhotos: item.samplePhotos.map(p => p === uri ? cloudUrl : p)
+        };
+      }));
+    });
   }, [cases, updateCase]);
 
   const saveExitVitals = useCallback((id: string, vitals: Vitals) => {
@@ -215,19 +302,26 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
     updateCase(id, { refusalData: data, closeTime: new Date().toISOString(), status: 'closed', caseOutcome: 'refused' });
   }, [updateCase]);
 
-  const confirmSupply = useCallback((caseId: string, supplyId: string, confirmed: boolean) => {
+  const confirmSupply = useCallback(async (caseId: string, supplyId: string, confirmed: boolean) => {
+    const locUpdate = await getCurrentLocation();
     setAllCases(prev => {
       const now = new Date().toISOString();
       const next = prev.map(c => {
         if (c.id !== caseId) return c;
-        return { ...c, updatedAt: now, supplies: c.supplies.map(s => s.id === supplyId ? { ...s, confirmed } : s) };
+        return { 
+          ...c, 
+          updatedAt: now, 
+          lastUpdatedLocation: locUpdate || c.lastUpdatedLocation,
+          supplies: c.supplies.map(s => s.id === supplyId ? { ...s, confirmed } : s) 
+        };
       });
       saveCases(next);
       return next;
     });
   }, []);
 
-  const updateOrderLine = useCallback((caseId: string, lineId: string, status: OrderLineStatus, photoUri?: string) => {
+  const updateOrderLine = useCallback(async (caseId: string, lineId: string, status: OrderLineStatus, photoUri?: string) => {
+    const locUpdate = await getCurrentLocation();
     setAllCases(prev => {
       const now = new Date().toISOString();
       const next = prev.map(c => {
@@ -235,6 +329,7 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
         return {
           ...c,
           updatedAt: now,
+          lastUpdatedLocation: locUpdate || c.lastUpdatedLocation,
           orderLines: (c.orderLines || []).map(l => 
             l.id === lineId ? { ...l, status, photoUri: photoUri || l.photoUri, updatedAt: now } : l
           )
@@ -249,16 +344,20 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
     updateCase(id, { currentPhase: phase });
   }, [updateCase]);
 
+  const setSampleCollectionTime = useCallback((id: string, time: string) => {
+    updateCase(id, { sampleCollectionTime: time, labDropoffIntent: true });
+  }, [updateCase]);
+
   return (
     <CaseContext.Provider value={{
-      cases, profile, loading, doctors,
+      cases, profile, loading, doctors, labs,
       getCaseById, updateCase,
       markDeparture, markArrival,
       setConsentPhoto, setDeviceReadingPhoto,
       savePCR, saveDoctorConsult,
       addProcedurePhoto, addSamplePhoto,
       saveExitVitals, saveLabDropoff,
-      closeCase, refuseCase,
+      closeCase, refuseCase, setSampleCollectionTime,
       confirmSupply, updateOrderLine, advancePhase,
       login: loginUser, logout: logoutUser,
       refreshCases,
@@ -272,4 +371,61 @@ export function useCases() {
   const ctx = useContext(CaseContext);
   if (!ctx) throw new Error('useCases must be used within CaseProvider');
   return ctx;
+}
+
+function sanitizeCases(cases: NurseCase[], isInitial: boolean): NurseCase[] {
+  if (Platform.OS !== 'web') return cases;
+
+  const currentOrigin = window.location.origin;
+  
+  return cases.map(c => {
+    const newCase = { ...c };
+    let changed = false;
+
+    const sanitizeUri = (uri?: string) => {
+      if (!uri) return uri;
+      if (uri.startsWith('blob:')) {
+        // Blobs are session-bound. If origin/port changed, or if we are initializing a new session,
+        // the blobs from storage are definitely dead.
+        if (!uri.includes(currentOrigin) || isInitial) {
+          changed = true;
+          return undefined;
+        }
+      }
+      return uri;
+    };
+
+    newCase.consentPhotoUri = sanitizeUri(newCase.consentPhotoUri);
+    newCase.deviceReadingPhotoUri = sanitizeUri(newCase.deviceReadingPhotoUri);
+    newCase.sampleCollectionPhotoUri = sanitizeUri(newCase.sampleCollectionPhotoUri);
+    newCase.procedurePhotos = newCase.procedurePhotos?.map(u => sanitizeUri(u) as string).filter(Boolean);
+    newCase.samplePhotos = newCase.samplePhotos?.map(u => sanitizeUri(u) as string).filter(Boolean);
+    newCase.voiceRecordingUri = sanitizeUri(newCase.voiceRecordingUri);
+    
+    if (newCase.pcr) {
+      newCase.pcr = {
+        ...newCase.pcr,
+        formPage1Uri: sanitizeUri(newCase.pcr.formPage1Uri),
+        formPage2Uri: sanitizeUri(newCase.pcr.formPage2Uri),
+        prevPrescriptionUri: sanitizeUri(newCase.pcr.prevPrescriptionUri),
+        prevMedicinePhotoUri: sanitizeUri(newCase.pcr.prevMedicinePhotoUri),
+      };
+    }
+
+    if (newCase.labDropoff) {
+      newCase.labDropoff = {
+        ...newCase.labDropoff,
+        photoUri: sanitizeUri(newCase.labDropoff.photoUri),
+      };
+    }
+
+    if (newCase.orders) {
+      newCase.orders = newCase.orders.map(o => ({
+        ...o,
+        photoUri: sanitizeUri(o.photoUri)
+      }));
+    }
+
+    return newCase;
+  });
 }
