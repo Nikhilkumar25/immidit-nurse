@@ -8,14 +8,25 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as Notifications from 'expo-notifications';
 import React, { useEffect } from "react";
-import { View, ActivityIndicator, Image, Text } from 'react-native';
+import { Platform, View, ActivityIndicator, Image, Text } from 'react-native';
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CaseProvider } from "@/contexts/CaseContext";
+import { registerBackgroundFetchAsync } from "@/utils/backgroundAlerts";
+
+// Configure how notifications appear when the app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 // SAFE LOAD WEBRTC: Prevents crashes on old binaries lacking native drivers
 let CallProvider = ({ children }: { children: React.ReactNode }) => <>{children}</>;
@@ -63,6 +74,23 @@ function RootLayoutNav() {
       router.replace('/(tabs)');
     }
   }, [profile, loading, segments]);
+
+  // Register background alerts & notification permissions
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    (async () => {
+      try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('Notification permissions not granted');
+        }
+        await registerBackgroundFetchAsync();
+        console.log('Background case checker registered');
+      } catch (e) {
+        console.warn('Background fetch registration failed:', e);
+      }
+    })();
+  }, []);
 
   if (loading) {
     return (
