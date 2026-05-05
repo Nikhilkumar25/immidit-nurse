@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import * as Speech from 'expo-speech';
 import { Platform } from 'react-native';
 import { usePathname } from 'expo-router';
 import type {
@@ -131,12 +130,15 @@ export function CaseProvider({ children }: { children: React.ReactNode }) {
       if (Platform.OS !== 'web') {
         const { Alert } = require('react-native');
         
-        // Voice Alert
-        Speech.speak(`New assignment for ${newlyAssigned[0].patientName}`, {
-          language: 'en',
-          pitch: 1.0,
-          rate: 0.9,
-        });
+        // Voice Alert (safe-load)
+        try {
+          const Speech = require('expo-speech');
+          Speech.speak(`New assignment for ${newlyAssigned[0].patientName}`, {
+            language: 'en',
+            pitch: 1.0,
+            rate: 0.9,
+          });
+        } catch (_) { /* expo-speech not available */ }
 
         Alert.alert(
           "New Assignment",
