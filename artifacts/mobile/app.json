@@ -40,8 +40,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.FOREGROUND_SERVICE"
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ],
       "navigationBar": {
         "backgroundColor": "#FFFFFF",
@@ -77,12 +76,9 @@
         "expo-notifications",
         {
           "icon": "./assets/images/icon.png",
-          "color": "#F5621E",
-          "sounds": []
+          "color": "#F5621E"
         }
-      ],
-      "expo-background-fetch",
-      "expo-task-manager"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
