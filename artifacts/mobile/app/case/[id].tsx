@@ -388,6 +388,7 @@ export default function CaseScreen() {
             </View>
 
             <DoctorConnect
+              caseId={c.id}
               existing={c.doctorConsultation}
               onCall={() => updateCase(c.id, { consultationRequested: true })}
               onSave={(data) => {

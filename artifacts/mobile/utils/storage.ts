@@ -188,6 +188,18 @@ const SEED_PROFILE: NurseProfile = {
 };
 
 // Doctors are now fetched dynamically from the cloud backend.
+export async function createMeetLink(caseId: string): Promise<string> {
+  try {
+    const apiUrl = 'https://script.google.com/macros/s/AKfycbyroY2Wx-BASB3BRk7lQ0jbCYdiFGLKxJgfWyP71Sy4E1Ej-ZVsGJya0zncf5DRavAmVg/exec';
+    const res = await fetch(`${apiUrl}?action=createMeet&id=${caseId}`);
+    const data = await res.json();
+    return data.meetUrl || 'https://meet.google.com/new';
+  } catch (error) {
+    console.error('Failed to create Meet link:', error);
+    return 'https://meet.google.com/new';
+  }
+}
+
 export async function loadDoctors(): Promise<DoctorProfile[]> {
   try {
     const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;

@@ -4,9 +4,11 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useCases } from '@/contexts/CaseContext';
+import { createMeetLink } from '@/utils/storage';
 import type { DoctorConsultation, DoctorProfile } from '@/types/case';
 
 interface Props {
+  caseId: string;
   existing?: DoctorConsultation;
   onSave: (data: DoctorConsultation) => void;
   onCall?: (doctorName: string) => void;
@@ -14,14 +16,11 @@ interface Props {
 
 const SPECIALTIES = ['General Physician', 'Cardiologist', 'Paediatrician', 'Gynaecologist'];
 
-import { VirtualCallOverlay } from './VirtualCallOverlay';
-
-export function DoctorConnect({ existing, onSave, onCall }: Props) {
+export function DoctorConnect({ caseId, existing, onSave, onCall }: Props) {
   const colors = useColors();
   const { doctors } = useCases();
   const [selectedSpecialty, setSelectedSpecialty] = useState('');
   const [calling, setCalling] = useState(false);
-  const [showVirtualCall, setShowVirtualCall] = useState(false);
   const [calledDoctor, setCalledDoctor] = useState<string | null>(existing?.doctorName ?? null);
   const [instructions, setInstructions] = useState(existing?.instructions ?? '');
   const [callDuration, setCallDuration] = useState(existing?.callDuration ?? '');
@@ -32,15 +31,20 @@ export function DoctorConnect({ existing, onSave, onCall }: Props) {
   );
 
   const handleCall = async (doctorName: string, specialty: string) => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setCalledDoctor(doctorName);
-    setShowVirtualCall(true);
-    if (onCall) onCall(doctorName);
-  };
-
-  const handleEndCall = (durationMins: number) => {
-    setShowVirtualCall(false);
-    setCallDuration(String(durationMins));
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      setCalling(true);
+      setCalledDoctor(doctorName);
+      
+      const meetUrl = await createMeetLink(caseId);
+      await Linking.openURL(meetUrl);
+      
+      setCalling(false);
+      if (onCall) onCall(doctorName);
+    } catch (err: any) {
+      setCalling(false);
+      Alert.alert('Call Failed', err.message || 'Could not connect to the doctor.');
+    }
   };
 
   const handleSave = async () => {
@@ -166,14 +170,6 @@ export function DoctorConnect({ existing, onSave, onCall }: Props) {
           </Text>
         </TouchableOpacity>
       )}
-
-      <VirtualCallOverlay 
-        isVisible={showVirtualCall}
-        doctorName={calledDoctor || ''}
-        doctorId={doctors.find(d => d.name === calledDoctor)?.id || ''}
-        specialty={doctors.find(d => d.name === calledDoctor)?.specialty || ''}
-        onEnd={handleEndCall}
-      />
     </View>
   );
 }
