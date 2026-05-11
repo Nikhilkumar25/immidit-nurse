@@ -34,14 +34,21 @@ export default function LoginScreen() {
     setError('');
 
     try {
-      const success = await login(nurseId, passcode);
-      if (success) {
+      const user = await login(nurseId, passcode);
+      if (user) {
         router.replace('/(tabs)');
-      } else {
-        setError('Invalid Nurse ID or Passcode');
       }
-    } catch (err) {
-      setError('An error occurred. Please check your connection.');
+    } catch (err: any) {
+      console.error('Login screen caught error:', err);
+      if (err.message === 'INVALID_CREDENTIALS') {
+        setError('Invalid Nurse ID or Passcode. Please check and try again.');
+      } else if (err.message === 'NETWORK_TIMEOUT') {
+        setError('Connection timed out. Please check your internet connection.');
+      } else if (err.message === 'API_URL_MISSING') {
+        setError('Configuration error: API URL is missing.');
+      } else {
+        setError(`Login failed: ${err.message || 'Unknown error'}`);
+      }
     } finally {
       setLoading(false);
     }

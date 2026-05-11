@@ -343,23 +343,36 @@ export async function loadProfile(): Promise<NurseProfile | null> {
 }
 
 export async function login(nurseId: string, passcode: string): Promise<NurseProfile | null> {
+  const nid = (nurseId || '').trim();
+  const pass = (passcode || '').trim();
+
   try {
     const apiUrl = process.env.EXPO_PUBLIC_SHEETS_API_URL;
-    if (!apiUrl) throw new Error('API URL missing');
+    if (!apiUrl) throw new Error('API_URL_MISSING');
     
-    const res = await fetch(`${apiUrl}?action=pull`);
+    // Timeout for slow mobile networks
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s
+
+    const res = await fetch(`${apiUrl}?action=pull`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) throw new Error(`SERVER_ERROR_${res.status}`);
+
     const data = await res.json();
-    const nurses = (data.nurses || []) as NurseProfile[];
+    const nurses = (data.nurses || []) as any[];
     
-    const match = nurses.find(n => n.id === nurseId && n.password === passcode);
+    const match = nurses.find(n => String(n.id).trim() === nid && String(n.password).trim() === pass);
     if (match) {
       await saveProfile(match);
       return match;
     }
-    return null;
-  } catch (error) {
-    console.error('Login failed:', error);
-    return null;
+    throw new Error('INVALID_CREDENTIALS');
+  } catch (error: any) {
+    console.error('Login error detail:', error);
+    if (error.name === 'AbortError') throw new Error('NETWORK_TIMEOUT');
+    if (error.message.includes('JSON')) throw new Error('MALFORMED_RESPONSE');
+    throw error;
   }
 }
 
